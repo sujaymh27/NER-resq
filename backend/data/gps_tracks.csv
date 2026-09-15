@@ -1,0 +1,6 @@
+track_id,vehicle_id,timestamp_utc,latitude,longitude,speed_kmh,heading_degrees,accuracy_meters,elevation_meters,segment_id,data_source
+T-001,V-001,2026-09-15T04:00:00Z,25.5788,91.8933,0,205,5,1525,R-001,synthetic_demo
+T-002,V-001,2026-09-15T04:08:00Z,25.5610,91.8790,42,208,6,1550,R-001,synthetic_demo
+T-003,V-001,2026-09-15T04:15:00Z,25.5490,91.8700,38,212,8,1620,R-002,synthetic_demo
+T-004,V-001,2026-09-15T04:22:00Z,25.5250,91.8500,40,210,7,1660,R-002,synthetic_demo
+T-005,V-001,2026-09-15T04:25:00Z,25.5120,91.8380,38,205,8,1680,R-002,synthetic_demo

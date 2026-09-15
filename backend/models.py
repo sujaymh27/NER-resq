@@ -170,3 +170,48 @@ class HealthFacility(BaseModel):
     cold_storage_available: bool
     near_segment_id: str
     data_source: str = "synthetic_demo"
+
+class CreateMissionRequest(BaseModel):
+    driver_name: str
+    vehicle_number: str
+    from_location: str
+    destination: str
+    cargo_type: str
+    cargo_priority: str = "critical"
+    vehicle_type: str = "medical_supply_truck"
+    assigned_route: str = "Route A (NH 106 — Direct)"
+    mission_id: Optional[str] = None
+    current_latitude: Optional[float] = None
+    current_longitude: Optional[float] = None
+    current_road_segment: Optional[str] = None
+    route: Optional[str] = None
+    eta: Optional[str] = None
+    distance_remaining_km: Optional[float] = None
+    speed_kmh: Optional[int] = None
+
+class UpdateLocationRequest(BaseModel):
+    latitude: float
+    longitude: float
+    current_segment_id: str = "R-001"
+    speed_kmh: int = 38
+    eta: str = "2 hr 10 min"
+    distance_remaining_km: float = 54.0
+    mission_status: Optional[str] = None
+    network_status: Optional[str] = None
+
+class SendAlertRequest(BaseModel):
+    title: str
+    message: Optional[str] = None
+    road_name: Optional[str] = None
+    route_bypass: Optional[str] = None
+    delay_minutes: int = 25
+    severity: str = "warning"
+
+class RerouteMissionRequest(BaseModel):
+    new_route: str
+    delay_minutes: int = 25
+    alert_text: str = ""
+
+class EscalateMissionRequest(BaseModel):
+    reason: str = "Critical corridor hazard / delay"
+    notes: Optional[str] = None

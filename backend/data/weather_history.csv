@@ -1,0 +1,5 @@
+weather_id,observation_time_utc,observation_time_local,area_name,latitude,longitude,rainfall_mm_last_1h,rainfall_mm_last_6h,rainfall_category,temperature_c,visibility_km,wind_speed_kmh,weather_warning,soil_saturation_index,data_source,freshness_minutes
+W-001,2026-09-15T03:30:00Z,2026-09-15T09:00:00+05:30,Shillong Peak Station,25.5788,91.8933,4.2,18.5,1,16.5,8.0,12.0,none,0.42,synthetic_demo,10
+W-002,2026-09-15T03:30:00Z,2026-09-15T09:00:00+05:30,Mylliem AWS,25.4950,91.8250,14.5,46.0,2,15.0,3.5,18.5,amber_rain,0.68,synthetic_demo,10
+W-003,2026-09-15T03:30:00Z,2026-09-15T09:00:00+05:30,Mawkdok Gorge AWS,25.4310,91.7900,38.0,112.0,3,14.2,0.8,32.0,red_landslide_watch,0.92,synthetic_demo,10
+W-004,2026-09-15T03:30:00Z,2026-09-15T09:00:00+05:30,Sohra Central Station,25.2913,91.7210,26.5,84.0,3,17.8,2.0,24.0,amber_rain,0.84,synthetic_demo,10

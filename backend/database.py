@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+if not os.path.exists(DATA_DIR) or not os.path.exists(os.path.join(DATA_DIR, "road_segments.csv")):
+    DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
 
 class ResQDatabase:
     def __init__(self):

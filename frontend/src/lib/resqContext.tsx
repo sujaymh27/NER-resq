@@ -483,7 +483,8 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     // Call backend
-    api.acknowledgeDriverAlert('V-001', 'M-001').catch(err => console.warn('Acknowledge backend fallback:', err));
+    api.acknowledgeMissionAlert('M-001').catch(err => console.warn('Acknowledge backend fallback:', err));
+    api.acknowledgeDriverAlert('V-001', 'M-001').catch(() => {});
 
     addDecisionEvent(
       'DRIVER_ALERT_ACKNOWLEDGED',
@@ -530,6 +531,7 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ? {
               ...v,
               driver_name: params.driverName,
+              vehicle_number: params.vehicleNumber,
               origin: params.fromLocation,
               destination: params.toDestination,
               current_segment_id: 'R-001',
@@ -544,6 +546,24 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : v
       )
     );
+
+    // Dispatch to FastAPI backend so District Officer on another device sees it
+    api.createMission({
+      mission_id: 'M-001',
+      driver_name: params.driverName,
+      vehicle_number: params.vehicleNumber,
+      from_location: params.fromLocation,
+      destination: params.toDestination,
+      cargo_type: params.cargoType,
+      cargo_priority: params.missionPriority,
+      current_latitude: originLat,
+      current_longitude: originLon,
+      current_road_segment: 'R-001',
+      route: routeCode,
+      eta: '2 hr 10 min',
+      distance_remaining_km: 54.0,
+      speed_kmh: 38
+    }).catch(err => console.warn('Backend mission creation fallback:', err));
 
     addDecisionEvent(
       'MISSION_STARTED',
@@ -577,6 +597,7 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : v
       )
     );
+    api.pauseMission('M-001').catch(err => console.warn('Backend pause fallback:', err));
     addDecisionEvent('MISSION_PAUSED', 'driver', 'Driver paused active transit.');
   }, [addDecisionEvent]);
 
@@ -604,6 +625,7 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : v
       )
     );
+    api.resumeMission('M-001').catch(err => console.warn('Backend resume fallback:', err));
     addDecisionEvent('MISSION_RESUMED', 'driver', 'Driver resumed active transit.');
   }, [addDecisionEvent]);
 
@@ -695,6 +717,9 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
       acknowledged: false,
       reminderCount: 0
     });
+
+    api.sendMissionAlert('M-001', alertData.message || `${alertData.title}. ${alertData.routeBypass || ''}`, 'warning').catch(err => console.warn('Backend send alert fallback:', err));
+
     addDecisionEvent(
       'ALERT_SENT_TO_DRIVER',
       'district_officer',
@@ -703,7 +728,7 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   }, [addDecisionEvent]);
 
-  // Simulated Live Location Movement Interval
+  // Simulated Live Location Movement Interval & Telemetry Dispatch
   useEffect(() => {
     const activeMission = missions.find(m => m.mission_id === 'M-001');
     if (!activeMission) return;
@@ -745,6 +770,14 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 : m
             )
           );
+          api.updateMissionLocation('M-001', {
+            latitude: lastWp.lat,
+            longitude: lastWp.lon,
+            current_road_segment: lastWp.segment,
+            speed_kmh: 0,
+            eta: 'Arrived',
+            distance_remaining_km: 0
+          }).catch(() => {});
           return prevIdx;
         }
 
@@ -777,12 +810,108 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
           )
         );
 
+        // Dispatched to backend so Officer laptop updates in real-time
+        api.updateMissionLocation('M-001', {
+          latitude: currentWp.lat,
+          longitude: currentWp.lon,
+          current_road_segment: currentWp.segment,
+          speed_kmh: currentWp.speed,
+          eta: currentWp.eta,
+          distance_remaining_km: currentWp.distanceRemaining
+        }).catch(() => {});
+
         return nextIdx;
       });
     }, 3200);
 
     return () => clearInterval(interval);
   }, [missions, useDeviceGps]);
+
+  // Cross-device live sync via backend polling (Phone <-> Laptop)
+  useEffect(() => {
+    let isSubscribed = true;
+    const pollInterval = setInterval(async () => {
+      try {
+        const activeMissions = await api.getActiveMissions();
+        if (!isSubscribed || !activeMissions || !activeMissions.length) return;
+
+        const serverMission = activeMissions.find((m: any) => m.mission_id === 'M-001') || activeMissions[0];
+        if (!serverMission) return;
+
+        setMissions(prev =>
+          prev.map(m => {
+            if (m.mission_id === serverMission.mission_id) {
+              return {
+                ...m,
+                driver_name: serverMission.driver_name || m.driver_name,
+                vehicle_number: serverMission.vehicle_number || m.vehicle_number,
+                origin: serverMission.from_location || m.origin,
+                destination: serverMission.destination || m.destination,
+                cargo_type: serverMission.cargo_type || m.cargo_type,
+                cargo_priority: serverMission.cargo_priority || m.cargo_priority,
+                mission_status: serverMission.mission_status || m.mission_status,
+                distance_remaining_km: serverMission.distance_remaining_km ?? m.distance_remaining_km,
+                current_eta_utc: serverMission.eta || m.current_eta_utc,
+                current_route: serverMission.route || m.current_route,
+                last_action: serverMission.active_alert?.message
+                  ? `Alert: ${serverMission.active_alert.message}`
+                  : m.last_action
+              };
+            }
+            return m;
+          })
+        );
+
+        setVehicles(prev =>
+          prev.map(v => {
+            if (v.mission_id === serverMission.mission_id || v.vehicle_id === 'V-001') {
+              return {
+                ...v,
+                driver_name: serverMission.driver_name || v.driver_name,
+                origin: serverMission.from_location || v.origin,
+                destination: serverMission.destination || v.destination,
+                current_segment_id: serverMission.current_road_segment || v.current_segment_id,
+                latitude: serverMission.current_latitude ?? v.latitude,
+                longitude: serverMission.current_longitude ?? v.longitude,
+                speed_kmh: serverMission.speed_kmh ?? v.speed_kmh,
+                mission_status: serverMission.mission_status || v.mission_status,
+                last_seen_utc: 'Just now'
+              };
+            }
+            return v;
+          })
+        );
+
+        // Sync alert state across devices
+        if (serverMission.active_alert && !serverMission.active_alert.acknowledged) {
+          setActiveAlert(prev => {
+            if (!prev.show || prev.acknowledged) {
+              return {
+                show: true,
+                title: 'ALERT FROM DISTRICT OPERATIONS',
+                roadName: serverMission.current_road_segment || 'R-004 Mawkdok Approach',
+                routeBypass: serverMission.active_alert.message || 'Proceed with extreme caution or follow detour.',
+                delayText: 'CRITICAL WARNING',
+                distanceAhead: 'Ahead',
+                acknowledged: false,
+                reminderCount: 0
+              };
+            }
+            return prev;
+          });
+        } else if (serverMission.active_alert?.acknowledged) {
+          setActiveAlert(prev => ({ ...prev, show: false, acknowledged: true }));
+        }
+      } catch {
+        // silent fallback
+      }
+    }, 2500);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(pollInterval);
+    };
+  }, []);
 
   // Real Device GPS Watcher
   useEffect(() => {

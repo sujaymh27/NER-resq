@@ -1,0 +1,4 @@
+vehicle_id,vehicle_type,driver_name,driver_phone_masked,mission_id,origin,destination,current_segment_id,latitude,longitude,heading_degrees,speed_kmh,last_seen_utc,network_status,mission_status,cargo_type,cargo_priority,battery_percent,data_source
+V-001,medical_supply_truck,Bah Daplin Nongrum,+91-98765-XXXX1,M-001,Shillong Logistics Gate,Sohra Community Health Facility,R-002,25.5120,91.8380,205,38,2026-09-15T04:25:00Z,online,in_transit,emergency_medicine,critical,88,synthetic_demo
+V-002,relief_pickup_truck,Babu Kynpham Mawlong,+91-98765-XXXX2,M-002,Shillong Logistics Gate,Sohra Emergency Depot,R-001,25.5680,91.8840,210,42,2026-09-15T04:22:00Z,online,in_transit,baby_food_ors,high,94,synthetic_demo
+V-003,motorcycle_courier,Iamon Lyngdoh,+91-98765-XXXX3,M-003,Mawkdok Logistics Hub,Sohra Community Health Facility,R-004,25.3850,91.7600,195,25,2026-09-15T04:20:00Z,intermittent,in_transit,antivenom_vials,critical,76,synthetic_demo

@@ -4,9 +4,9 @@
  * Connects frontend to FastAPI backend (http://127.0.0.1:8000) with safe fallback.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
 
-export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 3000): Promise<Response> {
+export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 4000): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -26,7 +26,7 @@ export const api = {
   // Check backend health
   async checkHealth(): Promise<boolean> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/`, { method: 'GET' }, 2000);
+      const res = await fetchWithTimeout(`${API_BASE}/`, { method: 'GET' }, 2500);
       return res.ok;
     } catch {
       return false;
@@ -119,6 +119,117 @@ export const api = {
     }
   },
 
+  async getActiveMissions(): Promise<any[]> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/missions/active`);
+      if (!res.ok) throw new Error('Failed to fetch active missions');
+      return await res.json();
+    } catch (e) {
+      console.warn('API active missions fetch failed:', e);
+      return [];
+    }
+  },
+
+  async getMission(missionId: string): Promise<any> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/missions/${missionId}`);
+      if (!res.ok) throw new Error('Failed to fetch mission');
+      return await res.json();
+    } catch (e) {
+      console.warn(`API get mission ${missionId} failed:`, e);
+      return null;
+    }
+  },
+
+  async createMission(payload: any): Promise<any> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/missions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Failed to create mission');
+      return await res.json();
+    } catch (e) {
+      console.warn('API create mission failed, fallback to local state:', e);
+      return null;
+    }
+  },
+
+  async updateMissionLocation(missionId: string, locationData: {
+    latitude: number;
+    longitude: number;
+    current_road_segment?: string;
+    speed_kmh?: number;
+    eta?: string;
+    distance_remaining_km?: number;
+  }): Promise<any> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/missions/${missionId}/location`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(locationData)
+      });
+      if (!res.ok) throw new Error('Failed to update mission location');
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async pauseMission(missionId: string): Promise<any> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/missions/${missionId}/pause`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      return await res.json();
+    } catch (e) {
+      console.warn('API pause mission failed:', e);
+      return null;
+    }
+  },
+
+  async resumeMission(missionId: string): Promise<any> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/missions/${missionId}/resume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      return await res.json();
+    } catch (e) {
+      console.warn('API resume mission failed:', e);
+      return null;
+    }
+  },
+
+  async sendMissionAlert(missionId: string, alertText: string, severity = 'warning'): Promise<any> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/missions/${missionId}/alert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alert_text: alertText, severity })
+      });
+      return await res.json();
+    } catch (e) {
+      console.warn('API send mission alert failed:', e);
+      return null;
+    }
+  },
+
+  async acknowledgeMissionAlert(missionId: string): Promise<any> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/missions/${missionId}/alert/acknowledge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      return await res.json();
+    } catch (e) {
+      console.warn('API acknowledge mission alert failed:', e);
+      return null;
+    }
+  },
+
   async rerouteMission(missionId: string, newRoute: string, delayMinutes: number, alertText: string): Promise<any> {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/missions/${missionId}/reroute`, {
@@ -134,6 +245,20 @@ export const api = {
       return await res.json();
     } catch (e) {
       console.warn('API reroute mission failed, local state updated:', e);
+      return null;
+    }
+  },
+
+  async escalateMission(missionId: string, notes = 'Corridor blocked; emergency escalation'): Promise<any> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/missions/${missionId}/escalate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes })
+      });
+      return await res.json();
+    } catch (e) {
+      console.warn('API escalate mission failed:', e);
       return null;
     }
   },
@@ -156,10 +281,9 @@ export const api = {
 
   async completeMission(vehicleId: string, missionId: string): Promise<any> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/driver/complete-mission`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/missions/${missionId}/complete`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vehicle_id: vehicleId, mission_id: missionId })
+        headers: { 'Content-Type': 'application/json' }
       });
       if (!res.ok) throw new Error('Failed to complete mission');
       return await res.json();

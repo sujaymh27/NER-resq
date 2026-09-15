@@ -1,0 +1,7 @@
+risk_record_id,segment_id,calculated_at_utc,rainfall_risk_score,terrain_risk_score,history_risk_score,field_report_risk_score,road_condition_score,data_freshness_score,overall_risk_score,risk_level,confidence_score,explanation,model_version,human_review_required,data_source
+RS-001,R-001,2026-09-15T04:00:00Z,15,20,10,15,30,95,18,low,95,Normal conditions; mild urban traffic and light precipitation.,v1.2-weighted-explainable,false,synthetic_demo
+RS-002,R-002,2026-09-15T04:00:00Z,25,30,15,20,25,92,24,low,92,Plateau road clear; light fog near Upper Shillong pine reserve.,v1.2-weighted-explainable,false,synthetic_demo
+RS-003,R-003,2026-09-15T04:15:00Z,65,75,45,50,40,88,58,high,86,Steep gorge terrain combined with heavy rainfall (38mm/hr) and historical joint vibrations on Duwan Sing Syiem bridge.,v1.2-weighted-explainable,true,synthetic_demo
+RS-004,R-004,2026-09-15T04:20:00Z,85,90,80,95,70,90,86,critical,91,Active landslide report (35m blockage), saturated escarpment slope (SSI 0.92), and critical debris on truck roadway. Human verification required.,v1.2-weighted-explainable,true,synthetic_demo
+RS-005,R-005,2026-09-15T04:10:00Z,30,25,20,20,15,90,23,low,90,Flat approach terrain near Sohra plateau; minor ditch overflow under control.,v1.2-weighted-explainable,false,synthetic_demo
+RS-006,R-003-ALT,2026-09-15T04:00:00Z,30,35,20,25,30,86,28,low,86,Eastern bypass via Umtyngar has gentler slopes and no active landslide history. Adds 25 min travel time.,v1.2-weighted-explainable,false,synthetic_demo

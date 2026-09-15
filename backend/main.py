@@ -5,10 +5,24 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .database import db
-from .models import FieldReport, Incident, RoadSegment, DecisionEvent
-from .risk_engine import compute_explainable_risk
-from .route_engine import evaluate_corridor_routes
+try:
+    from .database import db
+    from .models import (
+        FieldReport, Incident, RoadSegment, DecisionEvent, Mission,
+        CreateMissionRequest, UpdateLocationRequest, SendAlertRequest,
+        RerouteMissionRequest, EscalateMissionRequest
+    )
+    from .risk_engine import compute_explainable_risk
+    from .route_engine import evaluate_corridor_routes
+except (ImportError, ValueError):
+    from database import db
+    from models import (
+        FieldReport, Incident, RoadSegment, DecisionEvent, Mission,
+        CreateMissionRequest, UpdateLocationRequest, SendAlertRequest,
+        RerouteMissionRequest, EscalateMissionRequest
+    )
+    from risk_engine import compute_explainable_risk
+    from route_engine import evaluate_corridor_routes
 
 app = FastAPI(
     title="NER ResQ Emergency Routing API",
@@ -16,10 +30,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS for Next.js frontend
+# Enable CORS for Next.js frontend (local dev and Vercel production)
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
+if allowed_origins_env:
+    cors_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+else:
+    cors_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "*"
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins if cors_origins != ["*"] else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -235,83 +259,411 @@ def verify_field_report(report_id: str, req: VerifyReportRequest):
 
 # Vehicles & Missions
 @app.get("/api/vehicles")
+@app.get("/vehicles")
 def get_vehicles():
     return list(db.vehicles.values())
 
 @app.get("/api/missions")
+@app.get("/missions")
 def get_missions():
     return list(db.missions.values())
 
-class MissionRerouteRequest(BaseModel):
-    new_route: str
-    delay_minutes: int
-    alert_text: str
+@app.get("/api/missions/active")
+@app.get("/missions/active")
+def get_active_missions():
+    # Return missions that are started, in transit, paused, at risk, or rerouted
+    active = [m for m in db.missions.values() if m.get("mission_status") not in ["Delivered", "delivered"]]
+    if active:
+        return active
+    # Fallback to the latest mission
+    return list(db.missions.values())
 
-@app.post("/api/missions/{mission_id}/reroute")
-def reroute_mission(mission_id: str, req: MissionRerouteRequest):
+@app.get("/api/missions/{mission_id}")
+@app.get("/missions/{mission_id}")
+def get_mission(mission_id: str):
+    if mission_id not in db.missions:
+        raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
+    return db.missions[mission_id]
+
+@app.post("/api/missions")
+@app.post("/missions")
+def create_mission(req: CreateMissionRequest):
+    new_id = f"M-{len(db.missions)+1:03d}"
+    now_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    is_route_b = "Route B" in req.assigned_route or "R-003-ALT" in req.assigned_route
+    route_code = "R-001>R-002>R-003-ALT>R-005" if is_route_b else "R-001>R-002>R-003>R-004>R-005"
+    time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
+
+    mission_data = {
+        "mission_id": new_id,
+        "driver_name": req.driver_name,
+        "vehicle_number": req.vehicle_number,
+        "vehicle_type": req.vehicle_type,
+        "from_location": req.from_location,
+        "origin": req.from_location,
+        "destination": req.destination,
+        "cargo_type": req.cargo_type,
+        "cargo_description": req.cargo_type,
+        "cargo_priority": req.cargo_priority,
+        "origin_lat": 25.5600,
+        "origin_lon": 91.8700,
+        "destination_lat": 25.2913,
+        "destination_lon": 91.7210,
+        "vehicle_id": "V-001",
+        "planned_route": route_code,
+        "current_route": route_code,
+        "mission_created_at_utc": now_utc,
+        "planned_eta_utc": "2 hr 10 min",
+        "current_eta_utc": "2 hr 10 min",
+        "current_latitude": 25.5600,
+        "current_longitude": 91.8700,
+        "current_road_segment": "R-001",
+        "distance_remaining_km": 54.0,
+        "speed_kmh": 38,
+        "mission_status": "In Transit",
+        "risk_status": "Normal",
+        "risk_level": "low",
+        "delay_minutes": 0,
+        "last_updated_utc": now_utc,
+        "network_status": "online",
+        "active_alert": None,
+        "timeline": [
+            {
+                "timestamp": now_utc,
+                "time_label": time_label,
+                "description": f"Mission {new_id} started by {req.driver_name} ({req.vehicle_number}). Destination: {req.destination}.",
+                "actor_role": "driver"
+            }
+        ],
+        "last_action": f"Vehicle departed {req.from_location} on schedule.",
+        "data_source": "live_connected_demo"
+    }
+
+    db.missions[new_id] = mission_data
+    # Also update default active mission M-001 for compatibility
+    db.missions["M-001"] = dict(mission_data, mission_id="M-001")
+
+    # Update vehicle V-001
+    if "V-001" in db.vehicles:
+        db.vehicles["V-001"].update({
+            "driver_name": req.driver_name,
+            "vehicle_number": req.vehicle_number,
+            "mission_id": new_id,
+            "origin": req.from_location,
+            "destination": req.destination,
+            "current_segment_id": "R-001",
+            "latitude": 25.5600,
+            "longitude": 91.8700,
+            "speed_kmh": 38,
+            "mission_status": "In Transit",
+            "cargo_type": req.cargo_type,
+            "cargo_priority": req.cargo_priority,
+            "last_seen_utc": now_utc
+        })
+
+    db.log_event(
+        mission_id=new_id,
+        event_type="MISSION_STARTED",
+        actor_role="driver",
+        description=f"Driver {req.driver_name} started mission {new_id} ({req.cargo_type} for {req.destination})",
+        data={"driver": req.driver_name, "vehicle": req.vehicle_number, "from": req.from_location, "to": req.destination}
+    )
+    return mission_data
+
+@app.patch("/api/missions/{mission_id}")
+@app.patch("/missions/{mission_id}")
+def update_mission(mission_id: str, updates: Dict[str, Any]):
     if mission_id not in db.missions:
         raise HTTPException(status_code=404, detail="Mission not found")
     mission = db.missions[mission_id]
-    mission["current_route"] = req.new_route
-    mission["delay_minutes"] = req.delay_minutes
-    mission["mission_status"] = "rerouted"
-    mission["last_action"] = f"Rerouted to {req.new_route}. Alert issued: {req.alert_text}"
-    
-    # Update vehicle status
-    veh_id = mission["vehicle_id"]
-    if veh_id in db.vehicles:
-        db.vehicles[veh_id]["mission_status"] = "rerouted"
-
-    db.log_event(
-        mission_id=mission_id,
-        event_type="MISSION_REROUTED",
-        actor_role="district_officer",
-        description=f"Mission {mission_id} rerouted to {req.new_route} (+{req.delay_minutes} min delay)",
-        data={"route": req.new_route, "delay": req.delay_minutes, "alert": req.alert_text}
-    )
+    mission.update(updates)
+    mission["last_updated_utc"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     return mission
 
-# Driver actions
-class DriverAckRequest(BaseModel):
-    vehicle_id: str
-    mission_id: str
-
-@app.post("/api/driver/acknowledge")
-def acknowledge_alert(req: DriverAckRequest):
-    if req.mission_id in db.missions:
-        db.missions[req.mission_id]["last_action"] = "Driver acknowledged reroute alert. Following Route B."
+@app.post("/api/missions/{mission_id}/location")
+@app.post("/missions/{mission_id}/location")
+def update_mission_location(mission_id: str, req: UpdateLocationRequest):
+    now_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
     
+    target_id = mission_id if mission_id in db.missions else "M-001"
+    if target_id in db.missions:
+        m = db.missions[target_id]
+        prev_seg = m.get("current_road_segment", "R-001")
+        m["current_latitude"] = req.latitude
+        m["current_longitude"] = req.longitude
+        m["current_road_segment"] = req.current_segment_id
+        m["speed_kmh"] = req.speed_kmh
+        m["current_eta_utc"] = req.eta
+        m["distance_remaining_km"] = req.distance_remaining_km
+        m["last_updated_utc"] = now_utc
+        if req.mission_status:
+            m["mission_status"] = req.mission_status
+        if req.network_status:
+            m["network_status"] = req.network_status
+        
+        # Add timeline entry if sector changed
+        if prev_seg != req.current_segment_id:
+            m["timeline"].append({
+                "timestamp": now_utc,
+                "time_label": time_label,
+                "description": f"Vehicle entered sector {req.current_segment_id}",
+                "actor_role": "system"
+            })
+
+    # Update vehicle V-001
+    veh_id = db.missions.get(target_id, {}).get("vehicle_id", "V-001")
+    if veh_id in db.vehicles:
+        db.vehicles[veh_id].update({
+            "latitude": req.latitude,
+            "longitude": req.longitude,
+            "current_segment_id": req.current_segment_id,
+            "speed_kmh": req.speed_kmh,
+            "last_seen_utc": now_utc
+        })
+        if req.mission_status:
+            db.vehicles[veh_id]["mission_status"] = req.mission_status
+
+    return {"status": "updated", "mission_id": target_id, "timestamp": now_utc}
+
+@app.post("/api/missions/{mission_id}/pause")
+@app.post("/missions/{mission_id}/pause")
+def pause_mission(mission_id: str):
+    now_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
+    target_id = mission_id if mission_id in db.missions else "M-001"
+    if target_id in db.missions:
+        m = db.missions[target_id]
+        m["mission_status"] = "Paused"
+        m["speed_kmh"] = 0
+        m["last_updated_utc"] = now_utc
+        m["last_action"] = "Mission paused by driver."
+        m["timeline"].append({
+            "timestamp": now_utc,
+            "time_label": time_label,
+            "description": "Mission paused by driver",
+            "actor_role": "driver"
+        })
+    if "V-001" in db.vehicles:
+        db.vehicles["V-001"]["mission_status"] = "Paused"
+        db.vehicles["V-001"]["speed_kmh"] = 0
+    
+    db.log_event(mission_id=target_id, event_type="MISSION_PAUSED", actor_role="driver", description="Driver paused active mission")
+    return {"status": "Paused", "mission_id": target_id}
+
+@app.post("/api/missions/{mission_id}/resume")
+@app.post("/missions/{mission_id}/resume")
+def resume_mission(mission_id: str):
+    now_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
+    target_id = mission_id if mission_id in db.missions else "M-001"
+    if target_id in db.missions:
+        m = db.missions[target_id]
+        m["mission_status"] = "In Transit"
+        m["speed_kmh"] = 38
+        m["last_updated_utc"] = now_utc
+        m["last_action"] = "Mission resumed by driver."
+        m["timeline"].append({
+            "timestamp": now_utc,
+            "time_label": time_label,
+            "description": "Mission resumed by driver",
+            "actor_role": "driver"
+        })
+    if "V-001" in db.vehicles:
+        db.vehicles["V-001"]["mission_status"] = "In Transit"
+        db.vehicles["V-001"]["speed_kmh"] = 38
+    
+    db.log_event(mission_id=target_id, event_type="MISSION_RESUMED", actor_role="driver", description="Driver resumed active mission")
+    return {"status": "In Transit", "mission_id": target_id}
+
+@app.post("/api/missions/{mission_id}/alert")
+@app.post("/missions/{mission_id}/alert")
+def send_mission_alert(mission_id: str, req: SendAlertRequest):
+    now_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
+    target_id = mission_id if mission_id in db.missions else "M-001"
+
+    alert_obj = {
+        "title": req.title,
+        "message": req.message,
+        "road_name": req.road_name,
+        "route_bypass": req.route_bypass,
+        "delay_minutes": req.delay_minutes,
+        "sent_at_utc": now_utc,
+        "acknowledged": False,
+        "acknowledged_at_utc": None
+    }
+
+    if target_id in db.missions:
+        m = db.missions[target_id]
+        m["active_alert"] = alert_obj
+        m["last_updated_utc"] = now_utc
+        m["last_action"] = f"Alert issued: {req.title}. {req.route_bypass}"
+        m["timeline"].append({
+            "timestamp": now_utc,
+            "time_label": time_label,
+            "description": f"Road blockage alert sent: {req.title}",
+            "actor_role": "district_officer"
+        })
+
     db.log_event(
-        mission_id=req.mission_id,
+        mission_id=target_id,
+        event_type="DRIVER_ALERT_DISPATCHED",
+        actor_role="district_officer",
+        description=f"District Officer dispatched alert: {req.title} ({req.route_bypass})",
+        data={"alert": req.title, "delay": req.delay_minutes}
+    )
+    return {"status": "alert_sent", "alert": alert_obj, "mission_id": target_id}
+
+@app.post("/api/missions/{mission_id}/alert/acknowledge")
+@app.post("/missions/{mission_id}/alert/acknowledge")
+def acknowledge_mission_alert(mission_id: str):
+    now_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
+    target_id = mission_id if mission_id in db.missions else "M-001"
+
+    if target_id in db.missions:
+        m = db.missions[target_id]
+        if m.get("active_alert"):
+            m["active_alert"]["acknowledged"] = True
+            m["active_alert"]["acknowledged_at_utc"] = now_utc
+        m["last_updated_utc"] = now_utc
+        m["last_action"] = "Driver acknowledged reroute alert. Following Route B."
+        m["timeline"].append({
+            "timestamp": now_utc,
+            "time_label": time_label,
+            "description": "Driver acknowledged alert and confirmed bypass",
+            "actor_role": "driver"
+        })
+
+    db.log_event(
+        mission_id=target_id,
         event_type="DRIVER_ALERT_ACKNOWLEDGED",
         actor_role="driver",
-        description=f"Driver for {req.vehicle_id} acknowledged reroute alert",
-        data={"vehicle_id": req.vehicle_id}
+        description=f"Driver acknowledged alert for mission {target_id}",
+        data={"mission_id": target_id}
     )
-    return {"status": "acknowledged", "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {"status": "acknowledged", "mission_id": target_id, "timestamp": now_utc}
 
-@app.post("/api/driver/complete-mission")
-def complete_mission(req: DriverAckRequest):
-    if req.mission_id in db.missions:
-        m = db.missions[req.mission_id]
-        m["mission_status"] = "delivered"
-        m["last_action"] = "Mission completed successfully at destination health facility."
-    if req.vehicle_id in db.vehicles:
-        v = db.vehicles[req.vehicle_id]
-        v["mission_status"] = "delivered"
-        v["current_segment_id"] = "R-005"
-        v["latitude"] = 25.2913
-        v["longitude"] = 91.7210
-        v["speed_kmh"] = 0
+@app.post("/api/missions/{mission_id}/reroute")
+@app.post("/missions/{mission_id}/reroute")
+def reroute_mission(mission_id: str, req: RerouteMissionRequest):
+    now_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
+    target_id = mission_id if mission_id in db.missions else "M-001"
+
+    if target_id in db.missions:
+        m = db.missions[target_id]
+        m["current_route"] = req.new_route
+        m["delay_minutes"] = req.delay_minutes
+        m["mission_status"] = "Rerouted"
+        m["last_updated_utc"] = now_utc
+        m["last_action"] = f"Rerouted to {req.new_route} (+{req.delay_minutes} min delay)."
+        m["timeline"].append({
+            "timestamp": now_utc,
+            "time_label": time_label,
+            "description": f"Mission rerouted to {req.new_route} (+{req.delay_minutes} min delay)",
+            "actor_role": "district_officer"
+        })
+
+    if "V-001" in db.vehicles:
+        db.vehicles["V-001"]["mission_status"] = "Rerouted"
+        db.vehicles["V-001"]["current_segment_id"] = "R-003-ALT"
 
     db.log_event(
-        mission_id=req.mission_id,
+        mission_id=target_id,
+        event_type="MISSION_REROUTED",
+        actor_role="district_officer",
+        description=f"Mission {target_id} rerouted to {req.new_route}",
+        data={"route": req.new_route, "delay": req.delay_minutes}
+    )
+    return db.missions.get(target_id, {})
+
+@app.post("/api/missions/{mission_id}/escalate")
+@app.post("/missions/{mission_id}/escalate")
+def escalate_mission(mission_id: str, req: EscalateMissionRequest):
+    now_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
+    target_id = mission_id if mission_id in db.missions else "M-001"
+
+    if target_id in db.missions:
+        m = db.missions[target_id]
+        m["mission_status"] = "Escalated"
+        m["risk_status"] = "Escalated"
+        m["last_updated_utc"] = now_utc
+        m["last_action"] = f"Mission ESCALATED by District Officer. Reason: {req.reason}"
+        m["timeline"].append({
+            "timestamp": now_utc,
+            "time_label": time_label,
+            "description": f"Mission escalated to State DEOC: {req.reason}",
+            "actor_role": "district_officer"
+        })
+
+    if "V-001" in db.vehicles:
+        db.vehicles["V-001"]["mission_status"] = "Escalated"
+
+    db.log_event(
+        mission_id=target_id,
+        event_type="MISSION_ESCALATED",
+        actor_role="district_officer",
+        description=f"Mission {target_id} escalated: {req.reason}",
+        data={"reason": req.reason}
+    )
+    return {"status": "Escalated", "mission_id": target_id}
+
+@app.post("/api/missions/{mission_id}/complete")
+@app.post("/missions/{mission_id}/complete")
+def complete_mission_delivery(mission_id: str):
+    now_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
+    target_id = mission_id if mission_id in db.missions else "M-001"
+
+    if target_id in db.missions:
+        m = db.missions[target_id]
+        m["mission_status"] = "Delivered"
+        m["distance_remaining_km"] = 0.0
+        m["current_eta_utc"] = "Delivered"
+        m["speed_kmh"] = 0
+        m["last_updated_utc"] = now_utc
+        m["last_action"] = "Delivery completed safely at Sohra Health Facility."
+        m["timeline"].append({
+            "timestamp": now_utc,
+            "time_label": time_label,
+            "description": "Delivery completed: Emergency medicine received at Sohra Health Facility",
+            "actor_role": "driver"
+        })
+
+    if "V-001" in db.vehicles:
+        db.vehicles["V-001"].update({
+            "mission_status": "Delivered",
+            "current_segment_id": "R-005",
+            "latitude": 25.2913,
+            "longitude": 91.7210,
+            "speed_kmh": 0,
+            "last_seen_utc": now_utc
+        })
+
+    db.log_event(
+        mission_id=target_id,
         event_type="MISSION_COMPLETED",
         actor_role="driver",
         description=f"Delivery completed: Medicine arrived at Sohra Health Facility",
-        data={"vehicle_id": req.vehicle_id}
+        data={"mission_id": target_id}
     )
-    return {"status": "delivered", "mission_id": req.mission_id}
+    return {"status": "Delivered", "mission_id": target_id}
+
+# Backward compatibility driver endpoints
+class DriverAckRequest(BaseModel):
+    vehicle_id: str = "V-001"
+    mission_id: str = "M-001"
+
+@app.post("/api/driver/acknowledge")
+def legacy_acknowledge_alert(req: DriverAckRequest):
+    return acknowledge_mission_alert(req.mission_id)
+
+@app.post("/api/driver/complete-mission")
+def legacy_complete_mission(req: DriverAckRequest):
+    return complete_mission_delivery(req.mission_id)
 
 # Risk and Route engines
 class EvaluateRiskRequest(BaseModel):
