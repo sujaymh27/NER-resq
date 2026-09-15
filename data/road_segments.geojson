@@ -1,0 +1,151 @@
+{
+  "type": "FeatureCollection",
+  "name": "NER_ResQ_Shillong_Sohra_Corridor",
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "segment_id": "R-001",
+        "segment_name": "Shillong to Upper Shillong",
+        "length_km": 5.2,
+        "road_status": "open",
+        "risk_level": "low",
+        "risk_score": 18,
+        "truck_access": "open",
+        "motorcycle_access": "open",
+        "data_source": "osm_reference"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [91.8933, 25.5788],
+          [91.8880, 25.5720],
+          [91.8810, 25.5665],
+          [91.8750, 25.5580],
+          [91.8700, 25.5490]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "segment_id": "R-002",
+        "segment_name": "Upper Shillong to Mylliem Area",
+        "length_km": 8.4,
+        "road_status": "open",
+        "risk_level": "low",
+        "risk_score": 24,
+        "truck_access": "open",
+        "motorcycle_access": "open",
+        "data_source": "osm_reference"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [91.8700, 25.5490],
+          [91.8620, 25.5390],
+          [91.8514, 25.5204],
+          [91.8380, 25.5080],
+          [91.8250, 25.4950]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "segment_id": "R-003",
+        "segment_name": "Mylliem to Mawkdok Area",
+        "length_km": 14.6,
+        "road_status": "open",
+        "risk_level": "moderate",
+        "risk_score": 42,
+        "truck_access": "open",
+        "motorcycle_access": "open",
+        "data_source": "osm_reference"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [91.8250, 25.4950],
+          [91.8178, 25.4890],
+          [91.8106, 25.4631],
+          [91.8034, 25.4515],
+          [91.7900, 25.4310]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "segment_id": "R-004",
+        "segment_name": "Mawkdok to Sohra Approach",
+        "length_km": 18.1,
+        "road_status": "open",
+        "risk_level": "moderate",
+        "risk_score": 48,
+        "truck_access": "open",
+        "motorcycle_access": "open",
+        "data_source": "osm_reference"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [91.7900, 25.4310],
+          [91.7730, 25.4051],
+          [91.7568, 25.3821],
+          [91.7500, 25.3718],
+          [91.7352, 25.3375]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "segment_id": "R-005",
+        "segment_name": "Sohra Approach to Health Facility",
+        "length_km": 7.8,
+        "road_status": "open",
+        "risk_level": "low",
+        "risk_score": 22,
+        "truck_access": "open",
+        "motorcycle_access": "open",
+        "data_source": "osm_reference"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [91.7352, 25.3375],
+          [91.7271, 25.3161],
+          [91.7230, 25.3005],
+          [91.7210, 25.2913]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "segment_id": "R-003-ALT",
+        "segment_name": "Mylliem-Umtyngar Eastern Bypass (Route B)",
+        "length_km": 19.2,
+        "road_status": "open",
+        "risk_level": "low",
+        "risk_score": 28,
+        "truck_access": "open",
+        "motorcycle_access": "open",
+        "data_source": "synthetic_demo"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [91.8250, 25.4950],
+          [91.8410, 25.4720],
+          [91.8320, 25.4410],
+          [91.8100, 25.4200],
+          [91.7800, 25.4150],
+          [91.7352, 25.3375]
+        ]
+      }
+    }
+  ]
+}

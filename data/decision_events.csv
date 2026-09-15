@@ -1,0 +1,11 @@
+event_id,mission_id,event_type,actor_role,event_description,timestamp,event_data
+EVT-001,M-001,MISSION_CREATED,system,Mission M-001 created: Shillong to Sohra emergency medicine delivery,2026-09-15T03:30:00Z,"{""cargo"": ""insulin, antibiotics"", ""vehicle"": ""V-001"", ""route"": ""R-001>R-002>R-003>R-004>R-005""}"
+EVT-002,M-001,VEHICLE_DISPATCHED,district_officer,Vehicle V-001 cleared Shillong Logistics Gate,2026-09-15T04:00:00Z,"{""speed_kmh"": 42, ""driver"": ""Bah Daplin Nongrum""}"
+EVT-003,M-001,WEATHER_ALERT_RAISED,system,Rainfall risk elevated on R-003 and R-004 (SSI > 0.85),2026-09-15T04:15:00Z,"{""rainfall_score"": 85, ""segments"": [""R-003"", ""R-004""]}"
+EVT-004,M-001,OFFLINE_REPORT_QUEUED,field_officer,Landslide on R-004 reported by Field Officer FO-021 in offline mode,2026-09-15T04:20:00Z,"{""report_id"": ""FR-001"", ""status"": ""saved_locally""}"
+EVT-005,M-001,REPORT_SYNCHRONIZED,system,Field report FR-001 uploaded upon network link restoration,2026-09-15T04:25:00Z,"{""report_id"": ""FR-001"", ""network"": ""2g_edge"", ""photo_status"": ""pending""}"
+EVT-006,M-001,REPORT_VERIFIED,district_officer,District Officer verified landslide on R-004; truck access blocked,2026-09-15T04:27:00Z,"{""officer"": ""District Officer Demo"", ""decision"": ""block_truck""}"
+EVT-007,M-001,REROUTE_RECOMMENDED,route_engine,Routing engine recommended Route B (via Umtyngar bypass R-003-ALT, +25 min),2026-09-15T04:28:00Z,"{""selected_route"": ""Route B"", ""delay_min"": 25}"
+EVT-008,M-001,DRIVER_ALERT_DISPATCHED,district_officer,Emergency reroute alert transmitted to driver mobile,2026-09-15T04:29:00Z,"{""message"": ""ROAD BLOCKED AHEAD - TAKE ROUTE B - NEW DELAY +25 MIN""}"
+EVT-009,M-001,DRIVER_ALERT_ACKNOWLEDGED,driver,Driver Bah Daplin Nongrum acknowledged reroute instructions,2026-09-15T04:30:10Z,"{""driver"": ""Bah Daplin Nongrum"", ""vehicle"": ""V-001""}"
+EVT-010,M-001,MISSION_COMPLETED,driver,Emergency medicine successfully delivered to Sohra Community Health Facility,2026-09-15T05:40:00Z,"{""status"": ""delivered"", ""verified_by"": ""Facility Medical Officer""}"

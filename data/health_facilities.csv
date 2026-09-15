@@ -1,0 +1,4 @@
+facility_id,facility_name,facility_type,latitude,longitude,road_access_status,emergency_supply_priority,cold_storage_available,near_segment_id,data_source
+HF-001,Sohra Community Health Facility,prototype_subdivisional_hospital,25.2913,91.7210,open,critical,true,R-005,synthetic_demo
+HF-002,Mylliem Primary Health Post,prototype_primary_clinic,25.4960,91.8260,open,high,true,R-002,synthetic_demo
+HF-003,Mawkdok First Aid Center,prototype_first_aid_post,25.4320,91.7920,open,medium,false,R-003,synthetic_demo

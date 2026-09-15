@@ -1,0 +1,4 @@
+hub_id,hub_name,latitude,longitude,near_segment_id,capacity_vehicle_count,supports_cargo_transfer,has_mobile_signal,has_fuel,has_shelter,contact_role,status,data_source
+SH-001,Mawkdok Emergency Logistics Hub,25.4315,91.7910,R-003,15,true,true,true,true,Hub Logistics Commander,active,synthetic_demo
+SH-002,Upper Shillong Civil Staging Base,25.5510,91.8680,R-001,30,true,true,true,true,Base Superintendent,active,synthetic_demo
+SH-003,Sohrarim Mountain Staging Point,25.3420,91.7380,R-004,8,true,false,false,true,Checkpoint Havildar,active,synthetic_demo

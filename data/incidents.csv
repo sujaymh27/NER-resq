@@ -1,0 +1,6 @@
+incident_id,segment_id,incident_type,latitude,longitude,severity,reported_at_utc,resolved_at_utc,duration_hours,vehicle_impact,description,photo_available,verification_status,reported_by_role,data_source
+INC-001,R-004,fallen_tree,25.4050,91.7730,medium,2026-09-14T10:00:00Z,2026-09-14T16:00:00Z,6.0,all_vehicles_delayed,Fallen pine tree partially blocking downhill lane; cleared.,true,verified,field_officer,synthetic_demo
+INC-002,R-003,bridge_damage,25.4312,91.7898,medium,2026-09-14T14:30:00Z,,,heavy_trucks_slowed,Expansion joint vibration on Duwan Sing Syiem bridge approach.,true,needs_field_check,driver,synthetic_demo
+INC-003,R-003,heavy_rainfall,25.4630,91.8105,high,2026-09-15T01:15:00Z,,,visibility_reduced,Sudden monsoon downpour with rapid surface runoff and rock debris.,false,verified,local_authority,synthetic_demo
+INC-004,R-004,landslide,25.3375,91.7352,critical,2026-09-15T02:30:00Z,,,trucks_blocked_motorcycles_open,Major debris slide covering 35m of roadway; truck lane blocked, motorcycle shoulder passable.,true,pending,field_officer,synthetic_demo
+INC-005,R-005,flood,25.2950,91.7225,medium,2026-09-15T03:00:00Z,,,cars_delayed,Localized culvert silt overflow across road shoulder.,true,verified,volunteer,synthetic_demo
