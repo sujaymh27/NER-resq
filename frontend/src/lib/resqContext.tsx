@@ -39,6 +39,38 @@ export interface DriverAlertState {
   reminderCount: number;
 }
 
+export interface StartMissionParams {
+  driverName: string;
+  vehicleNumber: string;
+  fromLocation: string;
+  toDestination: string;
+  cargoType: string;
+  missionPriority: 'critical' | 'high' | 'medium' | 'low';
+  assignedRoute: string;
+}
+
+export const ROUTE_A_WAYPOINTS = [
+  { lat: 25.5600, lon: 91.8700, segment: 'R-001', distanceRemaining: 54.0, eta: '2 hr 10 min', speed: 38 },
+  { lat: 25.5350, lon: 91.8550, segment: 'R-001', distanceRemaining: 48.0, eta: '1 hr 55 min', speed: 44 },
+  { lat: 25.5050, lon: 91.8400, segment: 'R-002', distanceRemaining: 41.5, eta: '1 hr 40 min', speed: 42 },
+  { lat: 25.4700, lon: 91.8300, segment: 'R-002', distanceRemaining: 35.0, eta: '1 hr 25 min', speed: 40 },
+  { lat: 25.4350, lon: 91.8150, segment: 'R-003', distanceRemaining: 29.2, eta: '1 hr 10 min', speed: 36 },
+  { lat: 25.4150, lon: 91.7950, segment: 'R-003', distanceRemaining: 24.8, eta: '58 min', speed: 32 },
+  { lat: 25.3950, lon: 91.7800, segment: 'R-004', distanceRemaining: 19.5, eta: '45 min', speed: 34 },
+  { lat: 25.3550, lon: 91.7500, segment: 'R-004', distanceRemaining: 14.0, eta: '32 min', speed: 36 },
+  { lat: 25.3200, lon: 91.7350, segment: 'R-005', distanceRemaining: 7.5, eta: '18 min', speed: 40 },
+  { lat: 25.2913, lon: 91.7210, segment: 'R-005', distanceRemaining: 0.0, eta: 'Arrived', speed: 0 }
+];
+
+export const ROUTE_B_WAYPOINTS = [
+  { lat: 25.4700, lon: 91.8300, segment: 'R-002', distanceRemaining: 38.0, eta: '1 hr 35 min', speed: 38 },
+  { lat: 25.4600, lon: 91.8350, segment: 'R-003-ALT', distanceRemaining: 32.5, eta: '1 hr 20 min', speed: 35 },
+  { lat: 25.4200, lon: 91.8100, segment: 'R-003-ALT', distanceRemaining: 26.0, eta: '1 hr 05 min', speed: 36 },
+  { lat: 25.3700, lon: 91.7700, segment: 'R-003-ALT', distanceRemaining: 19.2, eta: '48 min', speed: 38 },
+  { lat: 25.3375, lon: 91.7352, segment: 'R-005', distanceRemaining: 10.5, eta: '25 min', speed: 40 },
+  { lat: 25.2913, lon: 91.7210, segment: 'R-005', distanceRemaining: 0.0, eta: 'Arrived', speed: 0 }
+];
+
 interface ResQContextType {
   segments: RoadSegment[];
   incidents: Incident[];
@@ -60,6 +92,13 @@ interface ResQContextType {
   cargoStagedAtHub: boolean;
   backendOnline: boolean;
 
+  // Live Location & Tracking
+  simulationIndex: number;
+  useDeviceGps: boolean;
+  setUseDeviceGps: (val: boolean) => void;
+  selectedDriverVehicle: Vehicle | null;
+  setSelectedDriverVehicle: (veh: Vehicle | null) => void;
+
   // Actions
   setSelectedRole: (role: UserRole | null) => void;
   setActiveRole: (role: UserRole) => void;
@@ -69,6 +108,12 @@ interface ResQContextType {
   setSelectedReport: (rep: FieldReport | null) => void;
   
   // Operational actions
+  startMission: (params: StartMissionParams) => void;
+  pauseMission: () => void;
+  resumeMission: () => void;
+  reportDriverProblem: (issueType: string, description: string) => void;
+  escalateMission: (missionId?: string, reason?: string) => void;
+  sendDistrictAlert: (alert: { title: string; roadName?: string; routeBypass?: string; delayText?: string; message?: string }) => void;
   saveOfflineReport: (report: Partial<FieldReport>) => FieldReport;
   syncOfflineReports: () => void;
   verifyReport: (reportId: string, action: 'verify' | 'reject' | 'request_field_check' | 'override', notes: string) => void;
@@ -119,6 +164,11 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [selectedReport, setSelectedReport] = useState<FieldReport | null>(null);
   const [cargoStagedAtHub, setCargoStagedAtHub] = useState<boolean>(false);
   const [backendOnline, setBackendOnline] = useState<boolean>(false);
+
+  // Live Location Simulation & Tracking States
+  const [simulationIndex, setSimulationIndex] = useState<number>(0);
+  const [useDeviceGps, setUseDeviceGps] = useState<boolean>(false);
+  const [selectedDriverVehicle, setSelectedDriverVehicle] = useState<Vehicle | null>(null);
 
   const [activeAlert, setActiveAlert] = useState<DriverAlertState>({
     show: false,
@@ -443,6 +493,328 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   }, [addDecisionEvent]);
 
+  // Start new mission from Driver Form
+  const startMission = useCallback((params: StartMissionParams) => {
+    const isRouteB = params.assignedRoute?.includes('Route B') || params.assignedRoute?.includes('R-003-ALT');
+    const routeCode = isRouteB ? 'R-001>R-002>R-003-ALT>R-005' : 'R-001>R-002>R-003>R-004>R-005';
+    const originLat = 25.5600;
+    const originLon = 91.8700;
+
+    setSimulationIndex(0);
+
+    setMissions(prev =>
+      prev.map(m =>
+        m.mission_id === 'M-001'
+          ? {
+              ...m,
+              driver_name: params.driverName,
+              vehicle_number: params.vehicleNumber,
+              origin: params.fromLocation,
+              destination: params.toDestination,
+              cargo_type: params.cargoType,
+              cargo_priority: params.missionPriority,
+              current_route: routeCode,
+              mission_status: 'In Transit',
+              distance_remaining_km: 54.0,
+              current_eta_utc: '2 hr 10 min',
+              delay_minutes: 0,
+              last_action: `Mission started by ${params.driverName}. Status: In Transit.`
+            }
+          : m
+      )
+    );
+
+    setVehicles(prev =>
+      prev.map(v =>
+        v.vehicle_id === 'V-001'
+          ? {
+              ...v,
+              driver_name: params.driverName,
+              origin: params.fromLocation,
+              destination: params.toDestination,
+              current_segment_id: 'R-001',
+              latitude: originLat,
+              longitude: originLon,
+              speed_kmh: 38,
+              last_seen_utc: 'Just now',
+              mission_status: 'In Transit',
+              cargo_type: params.cargoType,
+              cargo_priority: params.missionPriority
+            }
+          : v
+      )
+    );
+
+    addDecisionEvent(
+      'MISSION_STARTED',
+      'driver',
+      `Driver ${params.driverName} (${params.vehicleNumber}) started mission from ${params.fromLocation} to ${params.toDestination}. Cargo: ${params.cargoType}. Status: In Transit.`,
+      { driver: params.driverName, vehicle: params.vehicleNumber, from: params.fromLocation, to: params.toDestination }
+    );
+  }, [addDecisionEvent]);
+
+  // Pause mission
+  const pauseMission = useCallback(() => {
+    setMissions(prev =>
+      prev.map(m =>
+        m.mission_id === 'M-001'
+          ? {
+              ...m,
+              mission_status: 'Paused',
+              last_action: 'Mission paused by driver.'
+            }
+          : m
+      )
+    );
+    setVehicles(prev =>
+      prev.map(v =>
+        v.vehicle_id === 'V-001'
+          ? {
+              ...v,
+              mission_status: 'Paused',
+              speed_kmh: 0
+            }
+          : v
+      )
+    );
+    addDecisionEvent('MISSION_PAUSED', 'driver', 'Driver paused active transit.');
+  }, [addDecisionEvent]);
+
+  // Resume mission
+  const resumeMission = useCallback(() => {
+    setMissions(prev =>
+      prev.map(m =>
+        m.mission_id === 'M-001'
+          ? {
+              ...m,
+              mission_status: 'In Transit',
+              last_action: 'Mission resumed by driver.'
+            }
+          : m
+      )
+    );
+    setVehicles(prev =>
+      prev.map(v =>
+        v.vehicle_id === 'V-001'
+          ? {
+              ...v,
+              mission_status: 'In Transit',
+              speed_kmh: 38
+            }
+          : v
+      )
+    );
+    addDecisionEvent('MISSION_RESUMED', 'driver', 'Driver resumed active transit.');
+  }, [addDecisionEvent]);
+
+  // Report problem from driver
+  const reportDriverProblem = useCallback((issueType: string, description: string) => {
+    const curVeh = vehicles.find(v => v.vehicle_id === 'V-001') || vehicles[0];
+    setMissions(prev =>
+      prev.map(m =>
+        m.mission_id === 'M-001'
+          ? {
+              ...m,
+              mission_status: 'At Risk',
+              last_action: `Driver reported issue: ${issueType}. ${description}`
+            }
+          : m
+      )
+    );
+    setVehicles(prev =>
+      prev.map(v =>
+        v.vehicle_id === 'V-001'
+          ? {
+              ...v,
+              mission_status: 'At Risk',
+              speed_kmh: 15
+            }
+          : v
+      )
+    );
+
+    saveOfflineReport({
+      reporter_role: 'driver',
+      segment_id: curVeh.current_segment_id,
+      latitude: curVeh.latitude,
+      longitude: curVeh.longitude,
+      incident_type: (issueType.toLowerCase().includes('slide') ? 'landslide' : issueType.toLowerCase().includes('tree') ? 'fallen_tree' : 'road_damage') as any,
+      road_status_reported: 'restricted',
+      severity: 'high',
+      description: `[Driver Report] ${issueType}: ${description}`
+    });
+
+    addDecisionEvent(
+      'DRIVER_PROBLEM_REPORTED',
+      'driver',
+      `Driver reported road issue on ${curVeh.current_segment_id}: ${issueType} - ${description}. Mission set to At Risk.`,
+      { segment: curVeh.current_segment_id, issueType, description }
+    );
+  }, [vehicles, saveOfflineReport, addDecisionEvent]);
+
+  // Escalate mission
+  const escalateMission = useCallback((missionId: string = 'M-001', reason: string = 'Critical corridor hazard / delay') => {
+    setMissions(prev =>
+      prev.map(m =>
+        m.mission_id === missionId
+          ? {
+              ...m,
+              mission_status: 'Escalated',
+              last_action: `Mission ESCALATED by District Officer. Reason: ${reason}`
+            }
+          : m
+      )
+    );
+    setVehicles(prev =>
+      prev.map(v =>
+        v.mission_id === missionId
+          ? {
+              ...v,
+              mission_status: 'Escalated'
+            }
+          : v
+      )
+    );
+    addDecisionEvent(
+      'MISSION_ESCALATED',
+      'district_officer',
+      `District Officer escalated mission ${missionId}. State Operations alerted. Reason: ${reason}`,
+      { mission_id: missionId, reason }
+    );
+  }, [addDecisionEvent]);
+
+  // Send district alert to driver
+  const sendDistrictAlert = useCallback((alertData: { title: string; roadName?: string; routeBypass?: string; delayText?: string; message?: string }) => {
+    setActiveAlert({
+      show: true,
+      title: alertData.title || 'ROAD BLOCKED AHEAD',
+      roadName: alertData.roadName || 'R-004 Mawkdok to Sohra Approach',
+      routeBypass: alertData.routeBypass || 'Stop safely and follow Route B.',
+      delayText: alertData.delayText || 'Additional delay: 25 minutes.',
+      distanceAhead: '2.4 KM',
+      acknowledged: false,
+      reminderCount: 0
+    });
+    addDecisionEvent(
+      'ALERT_SENT_TO_DRIVER',
+      'district_officer',
+      `District Officer sent alert: ${alertData.title}. ${alertData.routeBypass || alertData.message || ''}`,
+      alertData
+    );
+  }, [addDecisionEvent]);
+
+  // Simulated Live Location Movement Interval
+  useEffect(() => {
+    const activeMission = missions.find(m => m.mission_id === 'M-001');
+    if (!activeMission) return;
+
+    const isMoving = activeMission.mission_status === 'In Transit' || activeMission.mission_status === 'in_transit' || activeMission.mission_status === 'Rerouted' || activeMission.mission_status === 'rerouted';
+
+    if (!isMoving || useDeviceGps) return;
+
+    const interval = setInterval(() => {
+      const isRouteB = activeMission.current_route?.includes('R-003-ALT');
+      const waypoints = isRouteB ? ROUTE_B_WAYPOINTS : ROUTE_A_WAYPOINTS;
+
+      setSimulationIndex(prevIdx => {
+        const nextIdx = prevIdx + 1;
+        if (nextIdx >= waypoints.length) {
+          const lastWp = waypoints[waypoints.length - 1];
+          setVehicles(prevVehs =>
+            prevVehs.map(v =>
+              v.vehicle_id === 'V-001'
+                ? {
+                    ...v,
+                    latitude: lastWp.lat,
+                    longitude: lastWp.lon,
+                    current_segment_id: lastWp.segment,
+                    speed_kmh: 0,
+                    last_seen_utc: 'Just now'
+                  }
+                : v
+            )
+          );
+          setMissions(prevM =>
+            prevM.map(m =>
+              m.mission_id === 'M-001'
+                ? {
+                    ...m,
+                    distance_remaining_km: 0,
+                    current_eta_utc: 'Arrived'
+                  }
+                : m
+            )
+          );
+          return prevIdx;
+        }
+
+        const currentWp = waypoints[nextIdx];
+        setVehicles(prevVehs =>
+          prevVehs.map(v =>
+            v.vehicle_id === 'V-001'
+              ? {
+                  ...v,
+                  latitude: currentWp.lat,
+                  longitude: currentWp.lon,
+                  current_segment_id: currentWp.segment,
+                  speed_kmh: currentWp.speed,
+                  last_seen_utc: 'Just now'
+                }
+              : v
+          )
+        );
+
+        setMissions(prevM =>
+          prevM.map(m =>
+            m.mission_id === 'M-001'
+              ? {
+                  ...m,
+                  distance_remaining_km: currentWp.distanceRemaining,
+                  current_eta_utc: currentWp.eta,
+                  last_action: `In transit along ${currentWp.segment}`
+                }
+              : m
+          )
+        );
+
+        return nextIdx;
+      });
+    }, 3200);
+
+    return () => clearInterval(interval);
+  }, [missions, useDeviceGps]);
+
+  // Real Device GPS Watcher
+  useEffect(() => {
+    if (!useDeviceGps || typeof window === 'undefined' || !navigator.geolocation) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      pos => {
+        const { latitude, longitude, speed } = pos.coords;
+        setVehicles(prev =>
+          prev.map(v =>
+            v.vehicle_id === 'V-001'
+              ? {
+                  ...v,
+                  latitude,
+                  longitude,
+                  speed_kmh: speed ? Math.round(speed * 3.6) : 35,
+                  last_seen_utc: 'Just now'
+                }
+              : v
+          )
+        );
+      },
+      err => {
+        console.warn('Device GPS unavailable, falling back to simulation:', err.message);
+        setUseDeviceGps(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 3000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [useDeviceGps]);
+
   // Complete mission
   const completeMission = useCallback((missionId: string) => {
     setMissions(prev =>
@@ -450,7 +822,9 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
         m.mission_id === missionId
           ? {
               ...m,
-              mission_status: 'delivered',
+              mission_status: 'Delivered',
+              distance_remaining_km: 0,
+              current_eta_utc: 'Delivered',
               last_action: 'Emergency medicine successfully delivered to Sohra Health Facility.'
             }
           : m
@@ -462,11 +836,12 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
         v.mission_id === missionId
           ? {
               ...v,
-              mission_status: 'delivered',
+              mission_status: 'Delivered',
               current_segment_id: 'R-005',
               latitude: 25.2913,
               longitude: 91.7210,
-              speed_kmh: 0
+              speed_kmh: 0,
+              last_seen_utc: 'Just now'
             }
           : v
       )
@@ -984,12 +1359,23 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
         selectedReport,
         cargoStagedAtHub,
         backendOnline,
+        simulationIndex,
+        useDeviceGps,
+        setUseDeviceGps,
+        selectedDriverVehicle,
+        setSelectedDriverVehicle,
         setSelectedRole,
         setActiveRole,
         setNetworkState,
         setIsMobileFrame,
         setSelectedSegment,
         setSelectedReport,
+        startMission,
+        pauseMission,
+        resumeMission,
+        reportDriverProblem,
+        escalateMission,
+        sendDistrictAlert,
         saveOfflineReport,
         syncOfflineReports,
         verifyReport,

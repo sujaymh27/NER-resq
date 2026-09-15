@@ -94,8 +94,31 @@ export interface FieldReport {
   data_source: string;
 }
 
+export type MissionStatus =
+  | 'Ready'
+  | 'Started'
+  | 'In Transit'
+  | 'Paused'
+  | 'At Risk'
+  | 'Rerouted'
+  | 'Delayed'
+  | 'Staged'
+  | 'Delivered'
+  | 'Escalated'
+  | 'ready'
+  | 'started'
+  | 'in_transit'
+  | 'paused'
+  | 'at_risk'
+  | 'rerouted'
+  | 'delayed'
+  | 'staged'
+  | 'delivered'
+  | 'escalated';
+
 export interface Vehicle {
   vehicle_id: string;
+  vehicle_number?: string;
   vehicle_type: 'medical_supply_truck' | 'relief_pickup_truck' | 'motorcycle_courier';
   driver_name: string;
   driver_phone_masked: string;
@@ -109,7 +132,7 @@ export interface Vehicle {
   speed_kmh: number;
   last_seen_utc: string;
   network_status: NetworkState;
-  mission_status: 'assigned' | 'in_transit' | 'rerouted' | 'staged' | 'delivered';
+  mission_status: MissionStatus;
   cargo_type: string;
   cargo_priority: 'critical' | 'high' | 'medium' | 'low';
   battery_percent: number;
@@ -128,13 +151,16 @@ export interface Mission {
   destination_lat: number;
   destination_lon: number;
   vehicle_id: string;
+  driver_name?: string;
+  vehicle_number?: string;
   planned_route: string;
   current_route: string;
   mission_created_at_utc: string;
   planned_eta_utc: string;
   current_eta_utc: string;
-  mission_status: 'in_transit' | 'delayed' | 'rerouted' | 'staged' | 'delivered';
+  mission_status: MissionStatus;
   delay_minutes: number;
+  distance_remaining_km?: number;
   risk_level: RiskLevel;
   last_action: string;
   data_source: string;

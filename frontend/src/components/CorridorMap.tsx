@@ -8,12 +8,16 @@ import 'leaflet/dist/leaflet.css';
 interface CorridorMapProps {
   height?: string;
   onSelectSegment?: (seg: RoadSegment) => void;
+  onSelectVehicle?: (veh: Vehicle) => void;
+  selectedVehicleId?: string;
   interactive?: boolean;
 }
 
 export const CorridorMap: React.FC<CorridorMapProps> = ({
   height = '500px',
   onSelectSegment,
+  onSelectVehicle,
+  selectedVehicleId,
   interactive = true
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -55,7 +59,7 @@ export const CorridorMap: React.FC<CorridorMapProps> = ({
         });
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | NER ResQ Pilot',
+          attribution: '&copy; OpenStreetMap | NER ResQ Corridor GIS',
           maxZoom: 18
         }).addTo(map);
 
@@ -85,24 +89,31 @@ export const CorridorMap: React.FC<CorridorMapProps> = ({
     import('leaflet').then((L) => {
       layerGroup.clearLayers();
 
-      // 1. Draw Road Segments
+      const activeMission = missions.find(m => m.mission_id === 'M-001');
+      const isRouteBActive = activeMission?.current_route?.includes('R-003-ALT');
+
+      // 1. Draw Road Segments with Required Status Colors:
+      // Green: Open road
+      // Yellow: Restricted road
+      // Red: Blocked road
+      // Grey: Unknown or stale road
       segments.forEach(seg => {
         if (!seg.coordinates || seg.coordinates.length < 2) return;
 
-        let color = '#10b981'; // green: open
+        let color = '#10b981'; // Green: Open
         let dashArray: string | undefined = undefined;
         let weight = 6;
         let opacity = 0.85;
 
         if (seg.road_status === 'blocked') {
-          color = '#ef4444'; // red: blocked
+          color = '#ef4444'; // Red: Blocked
           dashArray = '6, 8';
           weight = 7;
         } else if (seg.road_status === 'restricted') {
-          color = '#f59e0b'; // amber/yellow: restricted
+          color = '#f59e0b'; // Yellow: Restricted
           weight = 6;
         } else if (seg.road_status === 'unknown') {
-          color = '#6b7280'; // grey: unknown/stale
+          color = '#6b7280'; // Grey: Unknown / stale
           dashArray = '4, 4';
           weight = 5;
         }
@@ -127,29 +138,119 @@ export const CorridorMap: React.FC<CorridorMapProps> = ({
         });
 
         polyline.bindTooltip(
-          `<b>${seg.segment_id}: ${seg.segment_name}</b><br/>Status: <b>${seg.road_status.toUpperCase()}</b> | Risk: ${seg.risk_score} (${seg.risk_level})<br/>Truck: ${seg.truck_access} | Motorcycle: ${seg.motorcycle_access}`,
+          `<b>${seg.segment_id}: ${seg.segment_name}</b><br/>Status: <b>${seg.road_status.toUpperCase()}</b> | Risk: ${seg.risk_score} (${seg.risk_level})<br/>Truck Access: ${seg.truck_access.toUpperCase()}`,
           { sticky: true, className: 'resq-map-tooltip' }
         );
 
         layerGroup.addLayer(polyline);
       });
 
-      // 2. Draw Assigned / Safer Routes
-      const activeMission = missions.find(m => m.mission_id === 'M-001');
-      if (activeMission && activeMission.current_route.includes('R-003-ALT')) {
+      // 2. Draw Route Lines:
+      // Blue: Active assigned route
+      // Green route: Recommended alternative
+      // Dashed red route: Blocked route
+      const activeSegIds = isRouteBActive
+        ? ['R-001', 'R-002', 'R-003-ALT', 'R-005']
+        : ['R-001', 'R-002', 'R-003', 'R-004', 'R-005'];
+
+      const activeRouteCoords: [number, number][] = [];
+      activeSegIds.forEach(id => {
+        const s = segments.find(seg => seg.segment_id === id);
+        if (s?.coordinates) activeRouteCoords.push(...s.coordinates);
+      });
+
+      if (activeRouteCoords.length > 1) {
+        const blueRoute = L.polyline(activeRouteCoords, {
+          color: '#2563eb', // Blue: Active assigned route
+          weight: 4,
+          opacity: 0.85,
+          lineCap: 'round'
+        });
+        blueRoute.bindTooltip('🔵 Active Assigned Route', { sticky: true });
+        layerGroup.addLayer(blueRoute);
+      }
+
+      // Recommended alternative route (Route B if Route A is currently active)
+      if (!isRouteBActive) {
         const altSeg = segments.find(s => s.segment_id === 'R-003-ALT');
         if (altSeg?.coordinates) {
-          const routeLine = L.polyline(altSeg.coordinates, {
-            color: '#2563eb', // Blue
-            weight: 3,
-            opacity: 0.9
+          const greenAltRoute = L.polyline(altSeg.coordinates, {
+            color: '#059669', // Green route: Recommended alternative
+            weight: 4,
+            opacity: 0.75,
+            dashArray: '4, 6'
           });
-          routeLine.bindTooltip('Active Safer Route B (via Umtyngar Bypass)', { sticky: true });
-          layerGroup.addLayer(routeLine);
+          greenAltRoute.bindTooltip('🟢 Recommended Alternative: Route B (Umtyngar Bypass)', { sticky: true });
+          layerGroup.addLayer(greenAltRoute);
         }
       }
 
-      // 3. Draw Incidents
+      // Blocked route line (R-004 if blocked)
+      const r004 = segments.find(s => s.segment_id === 'R-004');
+      if (r004?.coordinates && r004.road_status === 'blocked') {
+        const redBlockedRoute = L.polyline(r004.coordinates, {
+          color: '#dc2626', // Dashed red route: Blocked route
+          weight: 6,
+          opacity: 0.9,
+          dashArray: '8, 8'
+        });
+        redBlockedRoute.bindTooltip('⛔ Dashed Red: Blocked Route (Landslide on R-004)', { sticky: true });
+        layerGroup.addLayer(redBlockedRoute);
+      }
+
+      // 3. Shillong Origin Marker
+      const shillongHtml = `
+        <div style="
+          background: #1e293b;
+          color: #38bdf8;
+          border: 2px solid #38bdf8;
+          border-radius: 6px;
+          padding: 2px 6px;
+          font-size: 11px;
+          font-weight: bold;
+          white-space: nowrap;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        ">
+          🏢 Shillong (Origin)
+        </div>
+      `;
+      const shillongIcon = L.divIcon({
+        className: 'custom-shillong-icon',
+        html: shillongHtml,
+        iconSize: [110, 24],
+        iconAnchor: [55, 12]
+      });
+      const shillongMarker = L.marker([25.5600, 91.8700], { icon: shillongIcon });
+      shillongMarker.bindPopup('<b>Shillong Central Warehouse</b><br/>Cold-chain depot & logistics dispatch base.');
+      layerGroup.addLayer(shillongMarker);
+
+      // 4. Sohra Destination Marker
+      const sohraHtml = `
+        <div style="
+          background: #991b1b;
+          color: #ffffff;
+          border: 2px solid #ffffff;
+          border-radius: 6px;
+          padding: 2px 6px;
+          font-size: 11px;
+          font-weight: bold;
+          white-space: nowrap;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        ">
+          🏥 Sohra Health Facility
+        </div>
+      `;
+      const sohraIcon = L.divIcon({
+        className: 'custom-sohra-icon',
+        html: sohraHtml,
+        iconSize: [140, 24],
+        iconAnchor: [70, 12]
+      });
+      const sohraMarker = L.marker([25.2913, 91.7210], { icon: sohraIcon });
+      sohraMarker.bindPopup('<b>Sohra Community Health Facility</b><br/>Destination facility with emergency cold storage.');
+      layerGroup.addLayer(sohraMarker);
+
+      // 5. Draw Incidents
       incidents.forEach(inc => {
         let iconColor = '#ef4444';
         let iconSymbol = '⚠️';
@@ -193,13 +294,12 @@ export const CorridorMap: React.FC<CorridorMapProps> = ({
             <div style="font-size: 12px; margin-bottom: 4px;"><b>Severity:</b> <span style="color: #dc2626; font-weight: bold;">${inc.severity.toUpperCase()}</span></div>
             <div style="font-size: 12px; margin-bottom: 4px;"><b>Status:</b> ${inc.verification_status}</div>
             <div style="font-size: 12px; margin-bottom: 6px; color: #475569;">${inc.description}</div>
-            <div style="font-size: 10px; color: #64748b; background: #f1f5f9; padding: 2px 4px; border-radius: 4px;">Source: ${inc.data_source}</div>
           </div>
         `);
         layerGroup.addLayer(marker);
       });
 
-      // 4. Draw Safe Hubs
+      // 6. Draw Safe Hubs
       safeHubs.forEach(hub => {
         const html = `
           <div style="
@@ -227,66 +327,34 @@ export const CorridorMap: React.FC<CorridorMapProps> = ({
           <div style="font-family: sans-serif;">
             <b>${hub.hub_name} (${hub.hub_id})</b><br/>
             Capacity: ${hub.capacity_vehicle_count} vehicles<br/>
-            Cargo Transfer Bay: ${hub.supports_cargo_transfer ? 'Yes (Truck ⇄ Motorcycle)' : 'No'}<br/>
-            Emergency Shelter: ${hub.has_shelter ? 'Active' : 'None'}<br/>
+            Cargo Transfer: ${hub.supports_cargo_transfer ? 'Yes (Truck ⇄ Motorcycle)' : 'No'}<br/>
             Contact: ${hub.contact_role}
           </div>
         `);
         layerGroup.addLayer(marker);
       });
 
-      // 5. Draw Health Facilities
-      healthFacilities.forEach(fac => {
-        const html = `
-          <div style="
-            background: #dc2626;
-            color: white;
-            border: 2px solid white;
-            border-radius: 6px;
-            padding: 3px 6px;
-            font-size: 11px;
-            font-weight: bold;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-          ">
-            🏥 ${fac.facility_name}
-          </div>
-        `;
-        const facIcon = L.divIcon({
-          className: 'custom-facility-icon',
-          html,
-          iconSize: [80, 24],
-          iconAnchor: [40, 12]
-        });
-        const marker = L.marker([fac.latitude, fac.longitude], { icon: facIcon });
-        marker.bindPopup(`
-          <div style="font-family: sans-serif;">
-            <b>${fac.facility_name}</b><br/>
-            Destination Health Center<br/>
-            Priority: <b>${fac.emergency_supply_priority.toUpperCase()}</b><br/>
-            Cold Storage Available: ${fac.cold_storage_available ? 'Yes' : 'No'}
-          </div>
-        `);
-        layerGroup.addLayer(marker);
-      });
-
-      // 6. Draw Vehicles
+      // 7. Draw All Active Vehicles / Drivers
       vehicles.forEach(veh => {
         const isTruck = veh.vehicle_type === 'medical_supply_truck';
         const symbol = isTruck ? '🚚' : '🏍️';
+        const isSelected = selectedVehicleId === veh.vehicle_id;
+
         const html = `
           <div style="
             position: relative;
-            background: #1e3a8a;
-            border: 3px solid #60a5fa;
+            background: ${isSelected ? '#2563eb' : '#1e3a8a'};
+            border: 3px solid ${isSelected ? '#fbbf24' : '#60a5fa'};
             border-radius: 50%;
-            width: 36px;
-            height: 36px;
+            width: ${isSelected ? '44px' : '38px'};
+            height: ${isSelected ? '44px' : '38px'};
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
-            box-shadow: 0 0 12px #3b82f6;
-            animation: pulse 2s infinite;
+            font-size: ${isSelected ? '22px' : '18px'};
+            box-shadow: 0 0 16px ${isSelected ? '#f59e0b' : '#3b82f6'};
+            cursor: pointer;
+            transition: transform 0.2s;
           ">
             ${symbol}
           </div>
@@ -294,23 +362,25 @@ export const CorridorMap: React.FC<CorridorMapProps> = ({
         const vehIcon = L.divIcon({
           className: 'custom-veh-icon',
           html,
-          iconSize: [36, 36],
-          iconAnchor: [18, 18]
+          iconSize: [40, 40],
+          iconAnchor: [20, 20]
         });
-        const marker = L.marker([veh.latitude, veh.longitude], { icon: vehIcon, zIndexOffset: 1000 });
-        marker.bindPopup(`
-          <div style="font-family: sans-serif;">
-            <b style="color: #1e3a8a;">${veh.vehicle_id} (${veh.vehicle_type.replace('_', ' ')})</b><br/>
-            Driver: ${veh.driver_name}<br/>
-            Mission: ${veh.mission_id} (Critical Medicine)<br/>
-            Speed: ${veh.speed_kmh} km/h | Battery: ${veh.battery_percent}%<br/>
-            Status: <span style="font-weight: bold; color: #2563eb;">${veh.mission_status.toUpperCase()}</span>
-          </div>
-        `);
+
+        const marker = L.marker([veh.latitude, veh.longitude], { icon: vehIcon, zIndexOffset: 2000 });
+
+        marker.on('click', () => {
+          if (onSelectVehicle) onSelectVehicle(veh);
+        });
+
+        marker.bindTooltip(
+          `<b>${veh.driver_name} (${veh.vehicle_id})</b><br/>Status: <b>${veh.mission_status}</b><br/>Click to view driver panel`,
+          { sticky: true }
+        );
+
         layerGroup.addLayer(marker);
       });
     });
-  }, [isClient, segments, incidents, vehicles, safeHubs, healthFacilities, missions, selectedSegment, setSelectedSegment, onSelectSegment]);
+  }, [isClient, segments, incidents, vehicles, safeHubs, healthFacilities, missions, selectedSegment, selectedVehicleId, setSelectedSegment, onSelectSegment, onSelectVehicle]);
 
   return (
     <div className="relative w-full rounded-xl overflow-hidden shadow-md border border-slate-200">
@@ -318,37 +388,37 @@ export const CorridorMap: React.FC<CorridorMapProps> = ({
         {!isClient && <span className="text-xs text-slate-400">Loading GIS Map...</span>}
       </div>
 
-      {/* Map Legend */}
-      <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm p-3 rounded-lg border border-slate-300 shadow-lg text-xs z-[1000] max-w-[210px]">
-        <div className="font-bold text-slate-800 mb-1.5 border-b border-slate-200 pb-1">Corridor Map Legend</div>
+      {/* Map Legend matching exact prompt specifications */}
+      <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm p-3 rounded-lg border border-slate-300 shadow-lg text-[11px] z-[1000] max-w-[230px]">
+        <div className="font-bold text-slate-800 mb-1 border-b border-slate-200 pb-1">Corridor Map Legend</div>
         <div className="space-y-1 text-slate-600">
           <div className="flex items-center gap-2">
-            <span className="w-4 h-1.5 bg-emerald-500 rounded-full inline-block"></span>
-            <span>Open (Low/Mod Risk)</span>
+            <span className="w-3.5 h-1.5 bg-[#10b981] rounded inline-block"></span>
+            <span>Green: Open road</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-4 h-1.5 bg-amber-500 rounded-full inline-block"></span>
-            <span>Restricted Access</span>
+            <span className="w-3.5 h-1.5 bg-[#f59e0b] rounded inline-block"></span>
+            <span>Yellow: Restricted road</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-4 h-1.5 bg-red-500 border-dashed border-red-500 inline-block"></span>
-            <span>Blocked (No Trucks)</span>
+            <span className="w-3.5 h-1.5 bg-[#ef4444] rounded inline-block"></span>
+            <span>Red: Blocked road</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-4 h-1.5 bg-slate-400 inline-block"></span>
-            <span>Unknown / Stale Data</span>
+            <span className="w-3.5 h-1.5 bg-[#6b7280] rounded inline-block"></span>
+            <span>Grey: Unknown / stale road</span>
           </div>
-          <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
-            <span>🚚</span>
-            <span>V-001 (Medicine Truck)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span>🛡️</span>
-            <span>Safe Logistics Hub</span>
+          <div className="flex items-center gap-2 pt-0.5 border-t border-slate-100">
+            <span className="w-3.5 h-1.5 bg-[#2563eb] rounded inline-block"></span>
+            <span>Blue: Active assigned route</span>
           </div>
           <div className="flex items-center gap-2">
-            <span>🏥</span>
-            <span>Sohra Health Facility</span>
+            <span className="w-3.5 h-1.5 bg-[#059669] rounded inline-block"></span>
+            <span>Green route: Recommended alt</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3.5 h-1.5 bg-[#dc2626] border-dashed border-[#dc2626] inline-block"></span>
+            <span>Dashed red: Blocked route</span>
           </div>
         </div>
       </div>
