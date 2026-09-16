@@ -119,6 +119,7 @@ export const SCENARIO_STEPS = [
 export const GuidedTourBar: React.FC = () => {
   const { currentDemoStep, setDemoStep, nextDemoStep, prevDemoStep, resetCorridorState, networkState, backendOnline } = useResQ();
   const [expanded, setExpanded] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   const cur = SCENARIO_STEPS[currentDemoStep - 1] || SCENARIO_STEPS[0];
 
@@ -128,15 +129,34 @@ export const GuidedTourBar: React.FC = () => {
     return <Radio className="w-3.5 h-3.5 text-purple-400" />;
   };
 
+  if (isMinimized) {
+    return (
+      <div className="bg-slate-950 text-white border-b border-slate-800 px-4 py-1.5 flex items-center justify-between text-xs">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+          <span className="font-bold text-slate-300 text-[11px]">
+            Guided Tour: Step {cur.step} of 12 — {cur.title}
+          </span>
+        </div>
+        <button
+          onClick={() => setIsMinimized(false)}
+          className="text-[11px] text-blue-400 hover:text-blue-300 font-bold px-2 py-0.5 rounded bg-slate-900 border border-slate-800"
+        >
+          Expand Tour Bar ▲
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-slate-900 text-white border-b border-slate-800 shadow-xl px-4 py-3 sticky top-0 z-50">
+    <div className="bg-slate-900 text-white border-b border-slate-800 shadow-md px-4 py-2.5 relative z-30">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Step Indicator & Title */}
         <div className="flex items-center gap-3">
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black text-xs px-3 py-1.5 rounded-lg flex-shrink-0 shadow-md flex items-center gap-1.5">
-            <span>SCENARIO STEP</span>
-            <span className="bg-white/20 px-1.5 py-0.5 rounded font-mono">{cur.step} / 12</span>
+            <span>STEP {cur.step} / 12</span>
           </div>
+
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -195,8 +215,17 @@ export const GuidedTourBar: React.FC = () => {
           >
             <RotateCcw className="w-4 h-4" />
           </button>
+
+          <button
+            onClick={() => setIsMinimized(true)}
+            className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded-lg text-[11px] font-semibold transition"
+            title="Minimize tour bar to save screen space"
+          >
+            Minimize ▼
+          </button>
         </div>
       </div>
+
 
       {/* Expanded 12-Step Jumper Grid */}
       {expanded && (

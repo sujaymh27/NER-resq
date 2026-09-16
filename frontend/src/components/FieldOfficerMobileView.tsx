@@ -48,6 +48,24 @@ export const FieldOfficerMobileView: React.FC = () => {
   const [photoPreview, setPhotoPreview] = useState<string | null>(
     'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240"><rect width="400" height="240" fill="%2364748b"/><polygon points="40,240 180,60 320,240" fill="%2378350f"/><polygon points="120,240 240,110 380,240" fill="%2392400e"/><circle cx="210" cy="180" r="28" fill="%23451a03"/><circle cx="160" cy="200" r="18" fill="%23451a03"/><circle cx="260" cy="210" r="22" fill="%23451a03"/><rect x="0" y="210" width="400" height="30" fill="%23334155"/><text x="20" y="40" fill="white" font-family="sans-serif" font-weight="bold" font-size="16">R-004 LANDSLIDE CHOKING TRUCK LANE</text><text x="20" y="65" fill="%23fef08a" font-family="sans-serif" font-size="13">GPS: 25.3376°N, 91.7351°E (±8m) | FO-021</text></svg>'
   );
+  const [photoFileName, setPhotoFileName] = useState<string | null>('landslide_debris_sector4.jpg');
+  const [photoSizeKb, setPhotoSizeKb] = useState<number | null>(85);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        setPhotoPreview(dataUrl);
+        setPhotoFileName(file.name);
+        setPhotoSizeKb(Math.round(file.size / 1024));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const [submissionFeedback, setSubmissionFeedback] = useState<string | null>(null);
 
   const handleSubmit = (forceOffline: boolean = false) => {
@@ -367,39 +385,92 @@ export const FieldOfficerMobileView: React.FC = () => {
             </div>
           </div>
 
-          {/* 6. Photograph (Simulated camera/compression) */}
+          {/* 6. Real Photograph Upload (Device file / Camera / Compression) */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-bold text-slate-700">OPTIONAL PHOTOGRAPH</label>
-              <span className="text-[10px] text-slate-500">Auto-compressed (85 KB)</span>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">Incident Photograph</label>
+              {photoSizeKb ? (
+                <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                  Compressed ({photoSizeKb} KB)
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-500">JPG, PNG or Camera</span>
+              )}
             </div>
 
+            {/* Hidden native file input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
             {photoPreview ? (
-              <div className="relative rounded-lg overflow-hidden border border-slate-300 bg-slate-900">
-                <img src={photoPreview} alt="Incident" className="w-full h-28 object-cover opacity-90" />
-                <button
-                  type="button"
-                  onClick={() => setPhotoPreview(null)}
-                  className="absolute top-1.5 right-1.5 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded font-bold"
-                >
-                  Remove
-                </button>
+              <div className="space-y-2">
+                <div className="relative rounded-xl overflow-hidden border-2 border-slate-300 bg-slate-900 shadow-inner">
+                  <img src={photoPreview} alt="Incident" className="w-full h-36 object-cover" />
+                  <div className="absolute top-2 right-2 flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] px-2.5 py-1 rounded-md font-bold shadow"
+                    >
+                      Change
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPhotoPreview(null);
+                        setPhotoFileName(null);
+                        setPhotoSizeKb(null);
+                      }}
+                      className="bg-red-600 hover:bg-red-700 text-white text-[10px] px-2.5 py-1 rounded-md font-bold shadow"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  {photoFileName && (
+                    <div className="absolute bottom-0 inset-x-0 bg-black/70 text-white text-[10px] px-2.5 py-1 truncate">
+                      📷 {photoFileName} ({photoSizeKb || 85} KB)
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() =>
-                  setPhotoPreview(
-                    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240"><rect width="400" height="240" fill="%23475569"/><polygon points="40,240 180,60 320,240" fill="%2378350f"/><polygon points="120,240 240,110 380,240" fill="%2392400e"/><text x="20" y="40" fill="white" font-family="sans-serif" font-weight="bold" font-size="16">PHOTO ATTACHMENT CAPTURED</text></svg>'
-                  )
-                }
-                className="w-full border-2 border-dashed border-slate-300 rounded-lg p-3 text-center hover:bg-slate-50 text-slate-600 text-xs font-semibold flex items-center justify-center gap-2"
-              >
-                <Camera className="w-4 h-4 text-slate-500" />
-                Capture / Attach Photo
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Real File Upload / Camera Trigger */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-blue-400 bg-blue-50/50 hover:bg-blue-100/60 rounded-xl p-3 text-center text-blue-900 text-xs font-bold flex flex-col items-center justify-center gap-1 transition active:scale-98"
+                >
+                  <Camera className="w-5 h-5 text-blue-600" />
+                  <span>Choose Photo / Camera</span>
+                  <span className="text-[10px] text-blue-600 font-normal">Browse files or take photo</span>
+                </button>
+
+                {/* Sample Photo 1-Click Option */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoPreview(
+                      'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240"><rect width="400" height="240" fill="%23475569"/><polygon points="40,240 180,60 320,240" fill="%2378350f"/><polygon points="120,240 240,110 380,240" fill="%2392400e"/><circle cx="210" cy="180" r="28" fill="%23451a03"/><circle cx="160" cy="200" r="18" fill="%23451a03"/><circle cx="260" cy="210" r="22" fill="%23451a03"/><rect x="0" y="210" width="400" height="30" fill="%23334155"/><text x="20" y="40" fill="white" font-family="sans-serif" font-weight="bold" font-size="16">R-004 LANDSLIDE CHOKING TRUCK LANE</text><text x="20" y="65" fill="%23fef08a" font-family="sans-serif" font-size="13">GPS: 25.3376°N, 91.7351°E (±8m) | FO-021</text></svg>'
+                    );
+                    setPhotoFileName('sample_landslide_r004.jpg');
+                    setPhotoSizeKb(85);
+                  }}
+                  className="border border-slate-300 bg-white hover:bg-slate-50 rounded-xl p-3 text-center text-slate-700 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition active:scale-98"
+                >
+                  <MapPin className="w-5 h-5 text-amber-600" />
+                  <span>Use Sample Photo</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Pre-loaded landslide photo</span>
+                </button>
+              </div>
             )}
           </div>
+
 
           {/* 7. Short Note */}
           <div>

@@ -64,8 +64,12 @@ export const DriverMobileView: React.FC = () => {
     completeMission,
     setSelectedRole,
     useDeviceGps,
-    setUseDeviceGps
+    setUseDeviceGps,
+    driverHelpRequest,
+    requestDriverHelp,
+    clearDriverHelpRequest
   } = useResQ();
+
 
   const vehicle = vehicles.find(v => v.vehicle_id === 'V-001') || vehicles[0];
   const mission = missions.find(m => m.mission_id === 'M-001') || missions[0];
@@ -353,9 +357,37 @@ export const DriverMobileView: React.FC = () => {
               </div>
             </div>
 
+            {/* Active Driver Assistance Call Pill */}
+            {driverHelpRequest?.active && (
+              <div className="bg-amber-500/15 border-2 border-amber-500 text-amber-950 p-3.5 rounded-xl shadow-md animate-pulse space-y-1">
+                <div className="flex items-center justify-between font-black text-xs uppercase">
+                  <span className="flex items-center gap-1.5 text-amber-800">
+                    <Radio className="w-4 h-4 text-amber-600 animate-spin" />
+                    Help Request Active
+                  </span>
+                  <span className="text-[10px] bg-amber-600 text-white px-2 py-0.5 rounded font-mono">
+                    Waiting for DEOC
+                  </span>
+                </div>
+                <div className="text-xs font-bold text-slate-900">
+                  Reported: <b>{driverHelpRequest.reason}</b>
+                </div>
+                <div className="text-[11px] text-slate-600 flex items-center justify-between pt-1">
+                  <span>Control Room alerted. Alternate route guidance incoming.</span>
+                  <button
+                    onClick={clearDriverHelpRequest}
+                    className="text-[10px] font-bold text-slate-500 hover:text-slate-800 underline"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* EMERGENCY ROAD WARNING BANNER */}
             {activeAlert.show && (
               <div className="bg-red-50 border-2 border-red-600 rounded-xl p-4 shadow-lg animate-bounce-slow">
+
                 <div className="flex items-start gap-3">
                   <div className="bg-red-600 text-white p-2 rounded-lg flex-shrink-0">
                     <AlertTriangle className="w-6 h-6" />
@@ -481,27 +513,58 @@ export const DriverMobileView: React.FC = () => {
       {/* Call Control Room Modal */}
       {callModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xs w-full p-5 shadow-2xl border border-slate-200 text-center space-y-4">
-            <div className="w-14 h-14 rounded-full bg-blue-100 text-blue-600 mx-auto flex items-center justify-center">
-              <Phone className="w-7 h-7 animate-pulse" />
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 text-center space-y-3.5">
+            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 mx-auto flex items-center justify-center">
+              <Phone className="w-6 h-6 animate-pulse" />
             </div>
             <div>
               <div className="font-bold text-slate-900 text-base">District Control Room</div>
               <div className="text-xs text-slate-500 mt-0.5">East Khasi Hills DEOC Hotline</div>
-              <div className="text-sm font-mono font-black text-blue-600 mt-1">1070 / +91-364-2224010</div>
+              <div className="text-sm font-mono font-black text-blue-600 mt-0.5">1070 / +91-364-2224010</div>
             </div>
-            <div className="text-xs text-left bg-slate-50 p-3 rounded-lg border border-slate-200 text-slate-600 leading-relaxed">
-              <b>Duty Officer:</b> &quot;Truck {vehicle.vehicle_id}, driver {vehicle.driver_name}, we have your live GPS location on {vehicle.current_segment_id}. All units standing by.&quot;
+
+            <div className="text-xs text-left bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-slate-700 leading-relaxed">
+              <b>Duty Officer:</b> &quot;Truck {vehicle.vehicle_id}, driver {vehicle.driver_name}, we have your telemetry on {vehicle.current_segment_id}. Select your condition below or call hotline.&quot;
             </div>
+
+            {/* Quick Request Assistance Actions */}
+            <div className="text-left space-y-1.5 pt-1">
+              <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                🚨 Request Alternative Route / Assistance:
+              </div>
+              {[
+                'Road Blocked Ahead — Request Route B Guidance',
+                'Landslide debris obstructing truck lane',
+                'Heavy rain & zero visibility on mountain pass',
+                'Vehicle mechanical breakdown'
+              ].map((reasonText) => (
+                <button
+                  key={reasonText}
+                  type="button"
+                  onClick={() => {
+                    requestDriverHelp(reasonText);
+                    setCallModalOpen(false);
+                  }}
+                  className="w-full text-left p-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-200 text-xs font-bold transition flex items-center justify-between active:scale-98"
+                >
+                  <span className="truncate pr-2">{reasonText}</span>
+                  <span className="bg-rose-600 text-white text-[10px] px-2 py-0.5 rounded font-mono flex-shrink-0">
+                    Send SOS
+                  </span>
+                </button>
+              ))}
+            </div>
+
             <button
               onClick={() => setCallModalOpen(false)}
               className="w-full bg-slate-900 text-white font-bold py-2.5 rounded-xl text-xs hover:bg-slate-800 transition"
             >
-              End Call
+              Close
             </button>
           </div>
         </div>
       )}
+
 
       {/* Report Problem Modal */}
       {problemModalOpen && (

@@ -61,32 +61,64 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenEdgeCases }) => {
         </div>
 
         {/* Role Switcher Tabs */}
-        <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700 overflow-x-auto">
-          {roles.map((r) => {
-            const Icon = r.icon;
-            const isActive = activeRole === r.id;
-            return (
-              <button
-                key={r.id}
-                onClick={() => {
-                  setActiveRole(r.id);
-                  if (r.id === 'driver' || r.id === 'field_officer') {
-                    setIsMobileFrame(true);
-                  } else {
-                    setIsMobileFrame(false);
-                  }
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${isActive
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
-                  }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{r.label}</span>
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700 overflow-x-auto">
+            {roles.map((r) => {
+              const Icon = r.icon;
+              const isActive = activeRole === r.id;
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => {
+                    setActiveRole(r.id);
+                    if (r.id === 'driver' || r.id === 'field_officer') {
+                      setIsMobileFrame(true);
+                    } else {
+                      setIsMobileFrame(false);
+                    }
+                    if (typeof window !== 'undefined') {
+                      try {
+                        sessionStorage.setItem('ner_resq_tab_role', r.id);
+                        window.history.replaceState(null, '', `/?role=${r.id}`);
+                      } catch {}
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${isActive
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                    }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{r.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick 2-Tabs Popups */}
+          <div className="hidden lg:flex items-center gap-1 bg-slate-800/80 px-2 py-1 rounded-xl border border-slate-700 text-[11px]">
+            <span className="text-slate-400 font-medium">Open Tab:</span>
+            <a
+              href="/?role=driver"
+              target="_blank"
+              rel="noreferrer"
+              className="px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-emerald-300 font-bold flex items-center gap-1"
+              title="Open Driver Mobile screen in a separate browser tab"
+            >
+              🚗 Driver Tab
+            </a>
+            <a
+              href="/?role=district_officer"
+              target="_blank"
+              rel="noreferrer"
+              className="px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-purple-300 font-bold flex items-center gap-1"
+              title="Open District Officer Dashboard in a separate browser tab"
+            >
+              🏢 DEOC Tab
+            </a>
+          </div>
         </div>
+
 
         {/* Right Tools: Frame Toggle, Network State, Edge Cases */}
         <div className="flex items-center gap-2 self-end md:self-auto">

@@ -545,6 +545,53 @@ def acknowledge_mission_alert(mission_id: str):
     )
     return {"status": "acknowledged", "mission_id": target_id, "timestamp": now_utc}
 
+class RequestHelpRequest(BaseModel):
+    driver_name: Optional[str] = "Demo Driver"
+    vehicle_number: Optional[str] = "Truck TRUCK-01"
+    reason: str = "Road Blocked Ahead / Need Route Guidance"
+    segment_id: Optional[str] = "R-004"
+    details: Optional[str] = None
+
+@app.post("/api/missions/{mission_id}/request-help")
+@app.post("/missions/{mission_id}/request-help")
+def request_mission_help(mission_id: str, req: RequestHelpRequest):
+    now_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    time_label = datetime.now().strftime("%I:%M %p").lstrip("0")
+    target_id = mission_id if mission_id in db.missions else "M-001"
+
+    help_obj = {
+        "active": True,
+        "driver_name": req.driver_name,
+        "vehicle_number": req.vehicle_number,
+        "reason": req.reason,
+        "segment_id": req.segment_id,
+        "details": req.details,
+        "requested_at_utc": now_utc,
+        "resolved": False
+    }
+
+    if target_id in db.missions:
+        m = db.missions[target_id]
+        m["assistance_request"] = help_obj
+        m["last_updated_utc"] = now_utc
+        m["last_action"] = f"Driver requested urgent assistance: {req.reason}"
+        m["timeline"].append({
+            "timestamp": now_utc,
+            "time_label": time_label,
+            "description": f"Driver requested help: {req.reason} on segment {req.segment_id}",
+            "actor_role": "driver"
+        })
+
+    db.log_event(
+        mission_id=target_id,
+        event_type="DRIVER_ASSISTANCE_REQUESTED",
+        actor_role="driver",
+        description=f"Driver requested urgent assistance: {req.reason} ({req.segment_id})",
+        data=help_obj
+    )
+    return {"status": "help_requested", "assistance_request": help_obj, "mission_id": target_id}
+
+
 @app.post("/api/missions/{mission_id}/reroute")
 @app.post("/missions/{mission_id}/reroute")
 def reroute_mission(mission_id: str, req: RerouteMissionRequest):
@@ -559,6 +606,20 @@ def reroute_mission(mission_id: str, req: RerouteMissionRequest):
         m["mission_status"] = "Rerouted"
         m["last_updated_utc"] = now_utc
         m["last_action"] = f"Rerouted to {req.new_route} (+{req.delay_minutes} min delay)."
+        m["active_alert"] = {
+            "title": "ROAD BLOCKED AHEAD — 2 KM",
+            "message": req.alert_text or "Massive landslide blocking main highway. Bypass via Route B.",
+            "road_name": "R-004 Mawkdok to Sohra Approach",
+            "route_bypass": "TAKE ROUTE B (VIA UMTYNGAR BYPASS)",
+            "delay_minutes": req.delay_minutes,
+            "sent_at_utc": now_utc,
+            "acknowledged": False,
+            "acknowledged_at_utc": None
+        }
+        if m.get("assistance_request"):
+            m["assistance_request"]["resolved"] = True
+            m["assistance_request"]["active"] = False
+
         m["timeline"].append({
             "timestamp": now_utc,
             "time_label": time_label,
@@ -709,3 +770,15 @@ def get_health_facilities():
 @app.get("/api/decision-events")
 def get_decision_events():
     return sorted(db.decision_events, key=lambda x: x["timestamp"], reverse=True)
+
+@app.get("/api/state/full")
+def get_full_state():
+    return {
+        "segments": list(db.segments.values()),
+        "missions": list(db.missions.values()),
+        "vehicles": list(db.vehicles.values()),
+        "field_reports": list(db.field_reports.values()),
+        "incidents": list(db.incidents.values()),
+        "decision_events": sorted(db.decision_events, key=lambda x: x["timestamp"], reverse=True)
+    }
+

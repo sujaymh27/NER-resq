@@ -344,5 +344,39 @@ export const api = {
       console.warn('API decision events fetch failed:', e);
       return [];
     }
+  },
+
+  // Driver Request Assistance
+  async requestMissionHelp(missionId: string, payload: {
+    driver_name?: string;
+    vehicle_number?: string;
+    reason: string;
+    segment_id?: string;
+    details?: string;
+  }): Promise<any> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/missions/${missionId}/request-help`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Failed to request mission help');
+      return await res.json();
+    } catch (e) {
+      console.warn('API request mission help fallback:', e);
+      return null;
+    }
+  },
+
+  // Full corridor & system state sync
+  async getFullState(): Promise<any> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/state/full`, { method: 'GET' }, 2500);
+      if (!res.ok) throw new Error('Failed to fetch full state');
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
   }
 };
+

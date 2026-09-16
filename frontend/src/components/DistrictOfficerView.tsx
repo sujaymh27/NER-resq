@@ -50,8 +50,12 @@ export const DistrictOfficerView: React.FC = () => {
     activeAlert,
     sendDistrictAlert,
     escalateMission,
-    setSelectedRole
+    setSelectedRole,
+    driverHelpRequest,
+    respondToDriverHelp,
+    clearDriverHelpRequest
   } = useResQ();
+
 
   const [activeTab, setActiveTab] = useState<'map' | 'reports' | 'routes' | 'timeline'>('map');
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
@@ -173,15 +177,60 @@ export const DistrictOfficerView: React.FC = () => {
           </button>
         </div>
       </div>
+      {/* Real-Time Cross-Tab Driver Assistance Alert */}
+      {driverHelpRequest?.active && (
+        <div className="bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white p-4 rounded-2xl shadow-xl border-2 border-red-400 flex flex-col md:flex-row items-center justify-between gap-4 animate-pulse">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-xl bg-white text-red-600 font-black flex items-center justify-center text-xl shadow flex-shrink-0">
+              🚨
+            </div>
+            <div>
+              <div className="flex items-center gap-2 font-black text-xs uppercase tracking-wider text-yellow-200">
+                <span>URGENT DRIVER ASSISTANCE CALL — MULTI-TAB LIVE</span>
+                <span className="bg-black/30 px-2 py-0.5 rounded text-[10px] text-white font-mono">LIVE CONNECTED</span>
+              </div>
+              <div className="text-sm font-black text-white mt-0.5">
+                {driverHelpRequest.vehicle_number} ({driverHelpRequest.driver_name}) on Sector {driverHelpRequest.segment_id}:
+              </div>
+              <div className="text-xs text-red-100 font-semibold mt-0.5">
+                &quot;{driverHelpRequest.reason}&quot; {driverHelpRequest.details ? `— ${driverHelpRequest.details}` : ''}
+              </div>
+            </div>
+          </div>
 
-      {broadcastSuccess && (
-        <div className="bg-red-100 border border-red-400 text-red-900 px-4 py-3 rounded-xl text-xs font-bold flex items-center gap-2">
-          <AlertOctagon className="w-4 h-4 text-red-600 flex-shrink-0" />
-          Corridor Emergency Broadcast dispatched to all district responders and field monitoring units.
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => {
+                respondToDriverHelp('R-001>R-002>R-003-ALT>R-005', 'ROAD BLOCKED AHEAD (2.4 KM). TAKE ROUTE B (VIA UMTYNGAR BYPASS). DELAY: +25 MIN');
+              }}
+              className="px-4 py-2.5 bg-white hover:bg-slate-100 text-red-700 font-black rounded-xl text-xs shadow-lg transition active:scale-95 flex items-center gap-1.5"
+            >
+              <Navigation className="w-4 h-4 text-emerald-600" />
+              Approve & Dispatch Route B to Driver
+            </button>
+            <button
+              onClick={clearDriverHelpRequest}
+              className="px-3 py-2.5 bg-black/40 hover:bg-black/60 text-white font-bold rounded-xl text-xs transition"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Driver Alert Acknowledged Feedback */}
+      {activeAlert.acknowledged && (
+        <div className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-md flex items-center justify-between text-xs font-bold">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-white" />
+            <span>Driver V-001 has acknowledged Route B bypass. Vehicle en route to Sohra via Umtyngar.</span>
+          </div>
+          <span className="text-[10px] bg-emerald-800 text-emerald-100 px-2 py-0.5 rounded uppercase">Connected</span>
         </div>
       )}
 
       {/* Live Mission Tracking Strip */}
+
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="bg-emerald-100 text-emerald-700 p-2.5 rounded-xl">

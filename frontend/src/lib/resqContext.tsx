@@ -39,7 +39,36 @@ export interface DriverAlertState {
   reminderCount: number;
 }
 
+export interface DriverHelpRequest {
+  active: boolean;
+  driver_name: string;
+  vehicle_number: string;
+  reason: string;
+  segment_id: string;
+  details?: string;
+  requested_at_utc: string;
+  resolved: boolean;
+}
+
+const BROADCAST_CHANNEL_NAME = 'ner_resq_sync_channel';
+
+export function broadcastAction(type: string, data: any) {
+  if (typeof window !== 'undefined') {
+    try {
+      if ('BroadcastChannel' in window) {
+        const bc = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+        bc.postMessage({ type, data, timestamp: Date.now() });
+        bc.close();
+      }
+      localStorage.setItem('ner_resq_sync_event', JSON.stringify({ type, data, timestamp: Date.now() }));
+    } catch (e) {
+      console.warn('Broadcast failed:', e);
+    }
+  }
+}
+
 export interface StartMissionParams {
+
   driverName: string;
   vehicleNumber: string;
   fromLocation: string;
@@ -92,7 +121,14 @@ interface ResQContextType {
   cargoStagedAtHub: boolean;
   backendOnline: boolean;
 
+  // Driver Help & Cross-Tab Emergency Request
+  driverHelpRequest: DriverHelpRequest | null;
+  requestDriverHelp: (reason: string, details?: string) => void;
+  respondToDriverHelp: (approvedRoute?: string, alertText?: string) => void;
+  clearDriverHelpRequest: () => void;
+
   // Live Location & Tracking
+
   simulationIndex: number;
   useDeviceGps: boolean;
   setUseDeviceGps: (val: boolean) => void;
@@ -146,6 +182,30 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [selectedRole, setSelectedRoleState] = useState<UserRole | null>(null);
   const [networkState, setNetworkState] = useState<NetworkState>('online');
   const [isMobileFrame, setIsMobileFrame] = useState<boolean>(true);
+  const [driverHelpRequest, setDriverHelpRequest] = useState<DriverHelpRequest | null>(null);
+
+  // Initialize role from URL query param (?role=driver) or sessionStorage (isolated per tab)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlRole = params.get('role') as UserRole | null;
+      if (urlRole && ['driver', 'field_officer', 'district_officer', 'head_office'].includes(urlRole)) {
+        setActiveRole(urlRole);
+        setSelectedRoleState(urlRole);
+        setIsMobileFrame(urlRole === 'driver' || urlRole === 'field_officer');
+        try { sessionStorage.setItem('ner_resq_tab_role', urlRole); } catch {}
+      } else {
+        try {
+          const saved = sessionStorage.getItem('ner_resq_tab_role') as UserRole | null;
+          if (saved && ['driver', 'field_officer', 'district_officer', 'head_office'].includes(saved)) {
+            setActiveRole(saved);
+            setSelectedRoleState(saved);
+            setIsMobileFrame(saved === 'driver' || saved === 'field_officer');
+          }
+        } catch {}
+      }
+    }
+  }, []);
 
   const setSelectedRole = useCallback((role: UserRole | null) => {
     setSelectedRoleState(role);
@@ -156,8 +216,12 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setIsMobileFrame(false);
       }
+      try {
+        sessionStorage.setItem('ner_resq_tab_role', role);
+      } catch {}
     }
   }, []);
+
   const [currentDemoStep, setCurrentDemoStep] = useState<number>(1);
   const [isTourActive, setIsTourActive] = useState<boolean>(false);
   const [selectedSegment, setSelectedSegment] = useState<RoadSegment | null>(null);
@@ -181,6 +245,123 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
     reminderCount: 0
   });
 
+  // Cross-Tab Instant Interconnection: BroadcastChannel + Storage Event
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleBroadcast = (action: { type: string; data: any }) => {
+      if (!action || !action.type) return;
+      const { type, data } = action;
+
+      if (type === 'DRIVER_HELP_REQUEST') {
+        setDriverHelpRequest(data);
+      } else if (type === 'CLEAR_HELP_REQUEST') {
+        setDriverHelpRequest(null);
+      } else if (type === 'REROUTE_APPROVED' || type === 'MISSION_REROUTED') {
+        setDriverHelpRequest(null);
+        setActiveAlert({
+          show: true,
+          title: data.title || 'ROAD BLOCKED AHEAD — 2 KM',
+          roadName: data.roadName || 'R-004 Mawkdok to Sohra Approach',
+          routeBypass: data.routeBypass || 'TAKE ROUTE B (VIA UMTYNGAR BYPASS)',
+          delayText: data.delayText || 'NEW DELAY: +25 MINUTES',
+          distanceAhead: '2.4 KM',
+          acknowledged: false,
+          reminderCount: 0
+        });
+        setMissions(prev =>
+          prev.map(m =>
+            m.mission_id === 'M-001'
+              ? {
+                  ...m,
+                  current_route: data.route || 'R-001>R-002>R-003-ALT>R-005',
+                  mission_status: 'Rerouted',
+                  delay_minutes: data.delay || 25,
+                  last_action: `Rerouted to Route B bypass (+25 min). ${data.routeBypass || ''}`
+                }
+              : m
+          )
+        );
+        setVehicles(prev =>
+          prev.map(v =>
+            v.vehicle_id === 'V-001'
+              ? {
+                  ...v,
+                  mission_status: 'Rerouted',
+                  current_segment_id: 'R-003-ALT'
+                }
+              : v
+          )
+        );
+      } else if (type === 'ALERT_ACKNOWLEDGED') {
+        setActiveAlert(prev => ({ ...prev, show: false, acknowledged: true }));
+        setMissions(prev =>
+          prev.map(m =>
+            m.mission_id === 'M-001'
+              ? {
+                  ...m,
+                  last_action: 'Driver acknowledged reroute alert. Following Route B.'
+                }
+              : m
+          )
+        );
+      } else if (type === 'MISSION_COMPLETED') {
+        setMissions(prev =>
+          prev.map(m =>
+            m.mission_id === 'M-001'
+              ? {
+                  ...m,
+                  mission_status: 'Delivered',
+                  current_eta_utc: 'Delivered',
+                  distance_remaining_km: 0,
+                  speed_kmh: 0,
+                  last_action: 'Emergency medicine successfully delivered to Sohra Health Facility.'
+                }
+              : m
+          )
+        );
+        setVehicles(prev =>
+          prev.map(v =>
+            v.vehicle_id === 'V-001'
+              ? {
+                  ...v,
+                  mission_status: 'Delivered',
+                  speed_kmh: 0
+                }
+              : v
+          )
+        );
+      } else if (type === 'REPORT_SUBMITTED' || type === 'REPORT_VERIFIED') {
+        if (data.report) {
+          setFieldReports(prev => [data.report, ...prev.filter(r => r.report_id !== data.report.report_id)]);
+        }
+        if (data.segments) {
+          setSegments(data.segments);
+        }
+      }
+    };
+
+    let bc: BroadcastChannel | null = null;
+    if ('BroadcastChannel' in window) {
+      bc = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+      bc.onmessage = (event) => handleBroadcast(event.data);
+    }
+
+    const storageHandler = (e: StorageEvent) => {
+      if (e.key === 'ner_resq_sync_event' && e.newValue) {
+        try {
+          handleBroadcast(JSON.parse(e.newValue));
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', storageHandler);
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener('storage', storageHandler);
+    };
+  }, []);
+
   // Check backend connectivity on mount
   useEffect(() => {
     let mounted = true;
@@ -190,7 +371,7 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (healthy) {
           api.getDecisionEvents().then(evts => {
             if (mounted && evts && evts.length > 0) {
-              // Merge backend events with local events if desired
+              setDecisionEvents(evts);
             }
           });
         }
@@ -198,6 +379,7 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     return () => { mounted = false; };
   }, []);
+
 
   const addDecisionEvent = useCallback((type: string, actor: string, desc: string, data?: any) => {
     const newEvt: DecisionEvent = {
@@ -445,6 +627,15 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Call backend API
     api.rerouteMission(missionId, newRoute, delayMinutes, alertMsg).catch(err => console.warn('Reroute backend fallback:', err));
 
+    broadcastAction('REROUTE_APPROVED', {
+      route: newRoute,
+      delay: delayMinutes,
+      title: 'ROAD BLOCKED AHEAD — 2 KM',
+      roadName: 'R-004 Mawkdok to Sohra Approach',
+      routeBypass: 'TAKE ROUTE B (VIA UMTYNGAR BYPASS)',
+      delayText: `NEW DELAY: +${delayMinutes} MINUTES`
+    });
+
     addDecisionEvent(
       'DRIVER_ALERT_DISPATCHED',
       'district_officer',
@@ -482,6 +673,8 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )
     );
 
+    broadcastAction('ALERT_ACKNOWLEDGED', { mission_id: 'M-001' });
+
     // Call backend
     api.acknowledgeMissionAlert('M-001').catch(err => console.warn('Acknowledge backend fallback:', err));
     api.acknowledgeDriverAlert('V-001', 'M-001').catch(() => {});
@@ -493,6 +686,65 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
       { vehicle: 'V-001', mission: 'M-001' }
     );
   }, [addDecisionEvent]);
+
+  // Request Help from Driver to Control Room
+  const requestDriverHelp = useCallback((reason: string, details?: string) => {
+    const curVeh = vehicles.find(v => v.vehicle_id === 'V-001') || vehicles[0];
+    const helpObj: DriverHelpRequest = {
+      active: true,
+      driver_name: curVeh.driver_name || 'Demo Driver',
+      vehicle_number: curVeh.vehicle_number || 'Truck TRUCK-01',
+      reason,
+      segment_id: curVeh.current_segment_id || 'R-004',
+      details,
+      requested_at_utc: new Date().toISOString(),
+      resolved: false
+    };
+
+    setDriverHelpRequest(helpObj);
+
+    setMissions(prev =>
+      prev.map(m =>
+        m.mission_id === 'M-001'
+          ? {
+              ...m,
+              mission_status: 'At Risk',
+              last_action: `Driver requested urgent help: ${reason}. Awaiting Control Room guidance.`
+            }
+          : m
+      )
+    );
+
+    broadcastAction('DRIVER_HELP_REQUEST', helpObj);
+
+    api.requestMissionHelp('M-001', {
+      driver_name: helpObj.driver_name,
+      vehicle_number: helpObj.vehicle_number,
+      reason,
+      segment_id: helpObj.segment_id,
+      details
+    }).catch(err => console.warn('Request help API fallback:', err));
+
+    addDecisionEvent(
+      'DRIVER_ASSISTANCE_REQUESTED',
+      'driver',
+      `Driver requested emergency guidance: "${reason}" on ${helpObj.segment_id}.`,
+      helpObj
+    );
+  }, [vehicles, addDecisionEvent]);
+
+  // Respond to Driver Help from District Officer / Head Office
+  const respondToDriverHelp = useCallback((approvedRoute: string = 'R-001>R-002>R-003-ALT>R-005', alertText: string = 'ROAD BLOCKED AHEAD (2.4 KM). TAKE ROUTE B (VIA UMTYNGAR BYPASS). DELAY: +25 MIN') => {
+    setDriverHelpRequest(null);
+    broadcastAction('CLEAR_HELP_REQUEST', {});
+    rerouteMission('M-001', approvedRoute, 25, alertText);
+  }, [rerouteMission]);
+
+  const clearDriverHelpRequest = useCallback(() => {
+    setDriverHelpRequest(null);
+    broadcastAction('CLEAR_HELP_REQUEST', {});
+  }, []);
+
 
   // Start new mission from Driver Form
   const startMission = useCallback((params: StartMissionParams) => {
@@ -827,85 +1079,90 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(interval);
   }, [missions, useDeviceGps]);
 
-  // Cross-device live sync via backend polling (Phone <-> Laptop)
+  // Cross-device and multi-tab live sync via backend polling
   useEffect(() => {
     let isSubscribed = true;
     const pollInterval = setInterval(async () => {
       try {
-        const activeMissions = await api.getActiveMissions();
-        if (!isSubscribed || !activeMissions || !activeMissions.length) return;
+        const full = await api.getFullState();
+        if (!isSubscribed || !full) return;
 
-        const serverMission = activeMissions.find((m: any) => m.mission_id === 'M-001') || activeMissions[0];
-        if (!serverMission) return;
+        if (full.missions && full.missions.length > 0) {
+          const serverMission = full.missions.find((m: any) => m.mission_id === 'M-001') || full.missions[0];
+          if (serverMission) {
+            setMissions(prev =>
+              prev.map(m => {
+                if (m.mission_id === serverMission.mission_id) {
+                  return {
+                    ...m,
+                    driver_name: serverMission.driver_name || m.driver_name,
+                    vehicle_number: serverMission.vehicle_number || m.vehicle_number,
+                    origin: serverMission.from_location || m.origin,
+                    destination: serverMission.destination || m.destination,
+                    cargo_type: serverMission.cargo_type || m.cargo_type,
+                    cargo_priority: serverMission.cargo_priority || m.cargo_priority,
+                    mission_status: serverMission.mission_status || m.mission_status,
+                    distance_remaining_km: serverMission.distance_remaining_km ?? m.distance_remaining_km,
+                    current_eta_utc: serverMission.current_eta_utc || serverMission.eta || m.current_eta_utc,
+                    current_route: serverMission.current_route || serverMission.route || m.current_route,
+                    last_action: serverMission.last_action || m.last_action
+                  };
+                }
+                return m;
+              })
+            );
 
-        setMissions(prev =>
-          prev.map(m => {
-            if (m.mission_id === serverMission.mission_id) {
-              return {
-                ...m,
-                driver_name: serverMission.driver_name || m.driver_name,
-                vehicle_number: serverMission.vehicle_number || m.vehicle_number,
-                origin: serverMission.from_location || m.origin,
-                destination: serverMission.destination || m.destination,
-                cargo_type: serverMission.cargo_type || m.cargo_type,
-                cargo_priority: serverMission.cargo_priority || m.cargo_priority,
-                mission_status: serverMission.mission_status || m.mission_status,
-                distance_remaining_km: serverMission.distance_remaining_km ?? m.distance_remaining_km,
-                current_eta_utc: serverMission.eta || m.current_eta_utc,
-                current_route: serverMission.route || m.current_route,
-                last_action: serverMission.active_alert?.message
-                  ? `Alert: ${serverMission.active_alert.message}`
-                  : m.last_action
-              };
+            // Sync alert state across devices
+            if (serverMission.active_alert && !serverMission.active_alert.acknowledged) {
+              setActiveAlert(prev => {
+                if (!prev.show || prev.acknowledged) {
+                  return {
+                    show: true,
+                    title: serverMission.active_alert.title || 'ROAD BLOCKED AHEAD — 2 KM',
+                    roadName: serverMission.active_alert.road_name || 'R-004 Mawkdok Approach',
+                    routeBypass: serverMission.active_alert.route_bypass || serverMission.active_alert.message || 'TAKE ROUTE B (VIA UMTYNGAR BYPASS)',
+                    delayText: `NEW DELAY: +${serverMission.active_alert.delay_minutes || 25} MINUTES`,
+                    distanceAhead: '2.4 KM',
+                    acknowledged: false,
+                    reminderCount: 0
+                  };
+                }
+                return prev;
+              });
+            } else if (serverMission.active_alert?.acknowledged) {
+              setActiveAlert(prev => ({ ...prev, show: false, acknowledged: true }));
             }
-            return m;
-          })
-        );
 
-        setVehicles(prev =>
-          prev.map(v => {
-            if (v.mission_id === serverMission.mission_id || v.vehicle_id === 'V-001') {
-              return {
-                ...v,
-                driver_name: serverMission.driver_name || v.driver_name,
-                origin: serverMission.from_location || v.origin,
-                destination: serverMission.destination || v.destination,
-                current_segment_id: serverMission.current_road_segment || v.current_segment_id,
-                latitude: serverMission.current_latitude ?? v.latitude,
-                longitude: serverMission.current_longitude ?? v.longitude,
-                speed_kmh: serverMission.speed_kmh ?? v.speed_kmh,
-                mission_status: serverMission.mission_status || v.mission_status,
-                last_seen_utc: 'Just now'
-              };
+            // Sync Driver Assistance Request
+            if (serverMission.assistance_request?.active) {
+              setDriverHelpRequest(serverMission.assistance_request);
+            } else if (serverMission.assistance_request?.resolved) {
+              setDriverHelpRequest(null);
             }
-            return v;
-          })
-        );
+          }
+        }
 
-        // Sync alert state across devices
-        if (serverMission.active_alert && !serverMission.active_alert.acknowledged) {
-          setActiveAlert(prev => {
-            if (!prev.show || prev.acknowledged) {
-              return {
-                show: true,
-                title: 'ALERT FROM DISTRICT OPERATIONS',
-                roadName: serverMission.current_road_segment || 'R-004 Mawkdok Approach',
-                routeBypass: serverMission.active_alert.message || 'Proceed with extreme caution or follow detour.',
-                delayText: 'CRITICAL WARNING',
-                distanceAhead: 'Ahead',
-                acknowledged: false,
-                reminderCount: 0
-              };
-            }
-            return prev;
-          });
-        } else if (serverMission.active_alert?.acknowledged) {
-          setActiveAlert(prev => ({ ...prev, show: false, acknowledged: true }));
+        if (full.segments && full.segments.length > 0) {
+          setSegments(full.segments);
+        }
+        if (full.field_reports && full.field_reports.length > 0) {
+          setFieldReports(full.field_reports);
+        }
+        if (full.incidents && full.incidents.length > 0) {
+          setIncidents(full.incidents);
+        }
+        if (full.vehicles && full.vehicles.length > 0) {
+          const sVeh = full.vehicles.find((v: any) => v.vehicle_id === 'V-001') || full.vehicles[0];
+          if (sVeh) {
+            setVehicles(prev =>
+              prev.map(v => (v.vehicle_id === sVeh.vehicle_id ? { ...v, ...sVeh, last_seen_utc: 'Just now' } : v))
+            );
+          }
         }
       } catch {
         // silent fallback
       }
-    }, 2500);
+    }, 2000);
 
     return () => {
       isSubscribed = false;
@@ -976,6 +1233,8 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )
     );
 
+    broadcastAction('MISSION_COMPLETED', { mission_id: missionId });
+
     // Call backend
     api.completeMission('V-001', missionId).catch(err => console.warn('Complete mission backend fallback:', err));
 
@@ -986,6 +1245,7 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
       { mission: missionId, vehicle: 'V-001' }
     );
   }, [addDecisionEvent]);
+
 
   // Stage cargo at safe hub
   const stageCargoAtHub = useCallback((hubId: string) => {
@@ -1488,6 +1748,10 @@ export const ResQProvider: React.FC<{ children: React.ReactNode }> = ({ children
         selectedReport,
         cargoStagedAtHub,
         backendOnline,
+        driverHelpRequest,
+        requestDriverHelp,
+        respondToDriverHelp,
+        clearDriverHelpRequest,
         simulationIndex,
         useDeviceGps,
         setUseDeviceGps,
