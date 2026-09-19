@@ -3,7 +3,7 @@
 **Smart India Hackathon 2026 Problem Statement:** `SIH26002`  
 **Organisation:** Ministry of Development of North Eastern Region (MDoNER)  
 **Pilot Corridor:** Shillong → Sohra (Cherrapunji), East Khasi Hills, Meghalaya, India  
-**Live Deployment:** [https://frontend-6aor.vercel.app](https://frontend-6aor.vercel.app)
+**Live Deployment:** [https://ner-resq.vercel.app](https://ner-resq.vercel.app)
 
 > **Core Value Statement:**  
 > *“NER ResQ converts fragmented weather, road, vehicle and field information into one verified, vehicle-specific logistics decision for safer essential deliveries.”*
@@ -128,6 +128,5 @@ npm run dev
 Access the application locally at: `http://localhost:3000`
 
 ### 3. Live Cloud Deployment
-- **Production URL:** **[https://frontend-6aor.vercel.app](https://frontend-6aor.vercel.app)**
-- **Multi-Tab Live Sync:** Open Tab 1 as **[Driver](https://frontend-6aor.vercel.app/?role=driver)** and Tab 2 as **[District Officer](https://frontend-6aor.vercel.app/?role=district_officer)** to test cross-tab real-time dispatch and driver help requests.
-- **Custom Domain / Slug:** To route via `https://ner-resq.vercel.app`, go to your Vercel Dashboard -> Project `frontend-6aor` -> **Settings** -> **General** -> Change Project Name to `ner-resq` (or add `ner-resq.vercel.app` under **Domains**).
+- **Production URL:** **[https://ner-resq.vercel.app](https://ner-resq.vercel.app)**
+- **Multi-Tab Live Sync:** Open Tab 1 as **[Driver](https://ner-resq.vercel.app/?role=driver)** and Tab 2 as **[District Officer](https://ner-resq.vercel.app/?role=district_officer)** to test cross-tab real-time dispatch and driver help requests.
