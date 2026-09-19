@@ -1,5 +1,12 @@
-# NER ResQ: Emergency Logistics & Intelligent Corridor Routing Platform
-**Pilot Corridor: Shillong → Sohra (Cherrapunji), Meghalaya, India**
+# NER ResQ: AI-Based Smart Logistics & Accessibility Intelligence Platform for the North Eastern Region (NER)
+
+**Smart India Hackathon 2026 Problem Statement:** `SIH26002`  
+**Organisation:** Ministry of Development of North Eastern Region (MDoNER)  
+**Pilot Corridor:** Shillong → Sohra (Cherrapunji), East Khasi Hills, Meghalaya, India  
+**Live Deployment:** [https://frontend-6aor.vercel.app](https://frontend-6aor.vercel.app)
+
+> **Core Value Statement:**  
+> *“NER ResQ converts fragmented weather, road, vehicle and field information into one verified, vehicle-specific logistics decision for safer essential deliveries.”*
 
 NER ResQ is an emergency logistics resilience system developed for mountain corridors in the North Eastern Region of India. It addresses catastrophic route disruptions caused by monsoonal landslides, flash floods, gorge bridge damage, and rockfalls, ensuring life-saving deliveries (insulin, emergency antibiotics, cold-chain antivenom, relief rations) reach destination health centers even when primary mountain highways are compromised.
 
@@ -118,4 +125,9 @@ cd frontend
 npm install
 npm run dev
 ```
-Access the application at: `http://localhost:3000`
+Access the application locally at: `http://localhost:3000`
+
+### 3. Live Cloud Deployment
+- **Production URL:** **[https://frontend-6aor.vercel.app](https://frontend-6aor.vercel.app)**
+- **Multi-Tab Live Sync:** Open Tab 1 as **[Driver](https://frontend-6aor.vercel.app/?role=driver)** and Tab 2 as **[District Officer](https://frontend-6aor.vercel.app/?role=district_officer)** to test cross-tab real-time dispatch and driver help requests.
+- **Custom Domain / Slug:** To route via `https://ner-resq.vercel.app`, go to your Vercel Dashboard -> Project `frontend-6aor` -> **Settings** -> **General** -> Change Project Name to `ner-resq` (or add `ner-resq.vercel.app` under **Domains**).
