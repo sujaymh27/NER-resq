@@ -13,17 +13,21 @@ NER ResQ is an emergency logistics resilience system developed for mountain corr
 ---
 
 ## ⚠️ DATA PROVENANCE & DEMONSTRATION DISCLAIMER
+
+> **Important Notice on Datasets:**  
+> Official live/real-time government road sensor feeds, departmental GIS telemetry, and active disaster datasets were **not publicly available** for this remote mountain corridor. Therefore, **realistic synthetic demonstration datasets were generated** based on actual Meghalaya terrain elevation profiles, OpenStreetMap road centerlines, and historical monsoon rainfall patterns to provide an authentic, fully testable end-to-end simulation of disaster logistics operations.
+
 All data used in this MVP demonstration is strictly tagged according to the pilot corridor study-area protocol:
 
 | Data Type | Provenance Tag | Operational Meaning |
 |:---|:---|:---|
 | **Road Base Geometry** | `osm_reference` | Approximate road centerlines derived from OpenStreetMap for the Shillong–Sohra corridor (SH-5 / Cherrapunjee Highway). |
-| **Prototype Segments** | `synthetic_demo` | Logical prototype segment IDs (`R-001` through `R-005`, `R-003-ALT`). **Not official government road IDs.** |
-| **Incidents & Hazards** | `synthetic_demo` | Synthetic demonstration records of landslides, washed shoulders, rainfall cells, and bridge joint vibrations. |
+| **Prototype Segments** | `synthetic_demo` | Logical prototype segment IDs (`R-001` through `R-005`, `R-003-ALT`). Generated for demonstration; **not official government road IDs.** |
+| **Incidents & Hazards** | `synthetic_demo` | Realistic synthetic demonstration records of landslides, washed shoulders, rainfall cells, and bridge joint vibrations. |
 | **Field Reports** | `field_report_demo` | Ground-truth simulation reports with offline sync states, GPS uncertainty radii, and vehicle access matrices. |
 | **Officer Decisions** | `officer_verified_demo` | Simulated district officer verification stamps, road status overrides, and reroute approvals. |
 | **Vehicle Tracking & GPS** | `synthetic_demo` | Synthetic GPS positions and heading telemetry along the pilot corridor. |
-| **Facilities & Staging Hubs**| `synthetic_demo` | Prototype labels (`Sohra Community Health Facility`, `Mawkdok Emergency Logistics Hub`). Not official claims. |
+| **Facilities & Staging Hubs**| `synthetic_demo` | Prototype labels (`Sohra Community Health Facility`, `Mawkdok Emergency Logistics Hub`). Not official government claims. |
 
 ---
 

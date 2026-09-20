@@ -114,9 +114,9 @@ export const FieldOfficerMobileView: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto bg-slate-50 min-h-[750px] flex flex-col font-sans border border-slate-300 rounded-2xl shadow-xl overflow-hidden text-slate-900">
+    <div className="w-full h-full flex-1 flex flex-col min-h-0 bg-slate-50 font-sans overflow-hidden text-slate-900">
       {/* Field Officer Top Header */}
-      <div className="bg-slate-900 text-white px-4 py-3.5 flex items-center justify-between border-b border-slate-800">
+      <div className="bg-slate-900 text-white px-4 py-3.5 flex items-center justify-between border-b border-slate-800 flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => setSelectedRole(null)}
@@ -155,7 +155,7 @@ export const FieldOfficerMobileView: React.FC = () => {
         </div>
       </div>
 
-      <div className="p-4 flex-1 flex flex-col gap-4 overflow-y-auto">
+      <div className="p-4 flex-1 flex flex-col gap-4 overflow-y-auto min-h-0">
         {/* Offline Banner only when genuinely offline */}
         {networkState === 'offline' && (
           <div className="bg-amber-50 border border-amber-300 p-2.5 rounded-xl flex items-center justify-between text-xs font-semibold text-amber-900">

@@ -102,42 +102,6 @@ export const RoleSelectionScreen: React.FC = () => {
           </button>
 
         </div>
-
-        {/* 2-Tab Multi-Screen Live Sync Helper */}
-        <div className="w-full bg-slate-900/90 border border-slate-800 p-4 rounded-2xl text-left space-y-3 shadow-xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Multi-Tab Live Interconnection (Side-by-Side)
-            </span>
-            <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">
-              BroadcastChannel + SQLite
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Open Tab 1 as <b>Driver</b> and Tab 2 as <b>District Officer</b>. When the Driver requests assistance or when the District Officer sends Route B bypass, both tabs communicate in real-time!
-          </p>
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <a
-              href="/?role=driver"
-              target="_blank"
-              rel="noreferrer"
-              className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 text-xs font-bold text-center transition flex items-center justify-center gap-1.5 shadow"
-            >
-              <span>🚗 Open Tab 1: Driver</span>
-              <span className="text-[10px] text-slate-400">↗</span>
-            </a>
-            <a
-              href="/?role=district_officer"
-              target="_blank"
-              rel="noreferrer"
-              className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-purple-400 border border-slate-700 text-xs font-bold text-center transition flex items-center justify-center gap-1.5 shadow"
-            >
-              <span>🏢 Open Tab 2: DEOC</span>
-              <span className="text-[10px] text-slate-400">↗</span>
-            </a>
-          </div>
-        </div>
       </div>
     </div>
   );
